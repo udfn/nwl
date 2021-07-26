@@ -9,16 +9,14 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 	struct nwl_surface *surf = (struct nwl_surface*)data;
 	zwlr_layer_surface_v1_ack_configure(layer, serial);
 	if (surf->impl.configure) {
-		surf->impl.configure(surf,width,height);
+		surf->impl.configure(surf, width, height);
 		nwl_surface_apply_size(surf);
-		wl_surface_commit(surf->wl.surface);
 		return;
 	} else if (surf->width != width || surf->height != height) {
 		surf->width = width;
 		surf->height = height;
 	}
 	nwl_surface_apply_size(surf);
-	wl_surface_commit(surf->wl.surface);
 }
 
 static void handle_layer_closed(void *data, struct zwlr_layer_surface_v1 *layer) {
