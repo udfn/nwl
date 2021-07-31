@@ -164,12 +164,14 @@ static void handle_keyboard_key(
 	}
 	event->serial = serial;
 	dispatch_keyboard_event(event, seat->keyboard_focus);
-	struct itimerspec timer = { 0 };
-	if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-		timer.it_value.tv_nsec = seat->keyboard_repeat_delay * 1000000;
-		timer.it_interval.tv_nsec = seat->keyboard_repeat_rate * 1000000;
+	if (seat->keyboard_repeat_enabled) {
+		struct itimerspec timer = { 0 };
+		if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+			timer.it_value.tv_nsec = seat->keyboard_repeat_delay * 1000000;
+			timer.it_interval.tv_nsec = seat->keyboard_repeat_rate * 1000000;
+		}
+		timerfd_settime(seat->keyboard_repeat_fd, 0, &timer, NULL);
 	}
-	timerfd_settime(seat->keyboard_repeat_fd, 0, &timer, NULL);
 }
 
 static void handle_keyboard_modifiers(

@@ -17,6 +17,7 @@ struct nwl_seat {
 	struct xkb_keymap *keyboard_keymap;
 	struct xkb_state *keyboard_state;
 	bool keyboard_compose_enabled; // Recommended when typing! Maybe move this to surface?
+	bool keyboard_repeat_enabled;
 	struct xkb_compose_state *keyboard_compose_state;
 	struct xkb_compose_table *keyboard_compose_table;
 	struct nwl_surface *keyboard_focus;
