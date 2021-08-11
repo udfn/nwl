@@ -13,6 +13,7 @@ enum nwl_surface_flags {
 	NWL_SURFACE_FLAG_CSD = 1 << 1,
 	NWL_SURFACE_FLAG_DESTROY = 1 << 2,
 	NWL_SURFACE_FLAG_NO_AUTOSCALE = 1 << 3,
+	NWL_SURFACE_FLAG_NO_AUTOCURSOR = 1 << 4, // ugh, this one shouldn't stay!
 };
 
 // This is basically the xdg toplevel states..
@@ -25,6 +26,15 @@ enum nwl_surface_states {
 	NWL_SURFACE_STATE_TILE_RIGHT = 1 << 5,
 	NWL_SURFACE_STATE_TILE_TOP = 1 << 6,
 	NWL_SURFACE_STATE_TILE_BOTTOM = 1 << 7,
+};
+
+enum nwl_surface_role {
+	NWL_SURFACE_ROLE_NONE = 0,
+	NWL_SURFACE_ROLE_TOPLEVEL,
+	NWL_SURFACE_ROLE_POPUP,
+	NWL_SURFACE_ROLE_LAYER,
+	NWL_SURFACE_ROLE_SUB,
+	NWL_SURFACE_ROLE_CURSOR
 };
 
 struct nwl_surface;
@@ -109,6 +119,7 @@ struct nwl_surface {
 	enum nwl_surface_flags flags;
 	enum nwl_surface_states states;
 	char *title;
+	char role; // nwl_surface_role, if it has one. Can also check the pointers in wl struct..
 	uint32_t configure_serial; // This should probably be moved to a separate role thing..
 	uint32_t frame;
 	struct {
@@ -129,8 +140,8 @@ void nwl_surface_apply_size(struct nwl_surface *surface);
 void nwl_surface_swapbuffers(struct nwl_surface *surface);
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool rendernow);
 
-void nwl_surface_role_subsurface(struct nwl_surface *parent, struct nwl_surface *surface);
-char nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer);
-char nwl_surface_role_toplevel(struct nwl_surface *surface);
+bool nwl_surface_role_subsurface(struct nwl_surface *parent, struct nwl_surface *surface);
+bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer);
+bool nwl_surface_role_toplevel(struct nwl_surface *surface);
 
 #endif

@@ -75,8 +75,6 @@ static void update_keyboard_event_compose(struct nwl_keyboard_event *event) {
 				event->compose_state = NWL_KEYBOARD_COMPOSE_NONE;
 		}
 	}
-
-
 }
 
 void nwl_seat_send_key_repeat(struct nwl_state *state, void *data) {
@@ -131,7 +129,6 @@ static void handle_keyboard_leave(
 	struct itimerspec timer = { 0 };
 	timerfd_settime(seat->keyboard_repeat_fd, 0, &timer, NULL);
 }
-
 
 static void handle_keyboard_key(
 		void *data,
@@ -208,7 +205,12 @@ static const struct wl_keyboard_listener keyboard_listener = {
 	handle_keyboard_repeat
 };
 
-static void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, struct nwl_surface *surface, const char *cursor) {
+// Should there be a nice static list of cursors to try 🤔
+void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, struct nwl_surface *surface, const char *cursor) {
+	if (cursor == NULL) {
+		wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, NULL, 0, 0);
+		return;
+	}
 	if ((int)seat->state->cursor_theme_size != surface->scale*24) {
 		if (seat->state->cursor_theme) {
 			wl_cursor_theme_destroy(seat->state->cursor_theme);
@@ -227,6 +229,24 @@ static void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, struct nwl_surfac
 		seat->pointer_cursor->images[0]->hotspot_x, seat->pointer_cursor->images[0]->hotspot_y);
 }
 
+bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y) {
+	if (surface->role && surface->role != NWL_SURFACE_ROLE_CURSOR) {
+		return false;
+	}
+	// Cursor surfaces can always be the desired size?
+	if (surface->width != surface->desired_width || surface->height != surface->desired_height) {
+		surface->width = surface->desired_width;
+		surface->height = surface->desired_height;
+		nwl_surface_apply_size(surface);
+	}
+	if (!surface->role) {
+		surface->role = NWL_SURFACE_ROLE_CURSOR;
+		wl_surface_commit(surface->wl.surface);
+	}
+	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, surface->wl.surface, hotspot_x, hotspot_y);
+	return true;
+}
+
 static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
 	UNUSED(pointer);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
@@ -237,7 +257,9 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 	seat->pointer_focus = nwlsurf;
 	seat->pointer_event->serial = serial;
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_MOTION | NWL_POINTER_EVENT_FOCUS;
-	nwl_seat_set_pointer_cursor(seat, nwlsurf, "left_ptr");
+	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
+		nwl_seat_set_pointer_cursor(seat, nwlsurf, "left_ptr");
+	}
 }
 
 static void handle_pointer_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface) {

@@ -326,8 +326,7 @@ char nwl_wayland_init(struct nwl_state *state) {
 }
 
 void nwl_wayland_uninit(struct nwl_state *state) {
-	struct nwl_surface *surface;
-	struct nwl_surface *surfacetmp;
+	struct nwl_surface *surface, *surfacetmp;
 	wl_list_for_each_safe(surface, surfacetmp, &state->surfaces, link) {
 		nwl_surface_destroy(surface);
 	}

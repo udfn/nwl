@@ -114,24 +114,26 @@ static void handle_decoration_configure(
 		surf->flags = surf->flags & ~NWL_SURFACE_FLAG_CSD;
 	}
 }
+
 static const struct zxdg_toplevel_decoration_v1_listener decoration_listener = {
 	handle_decoration_configure
 };
 
-
-char nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer) {
-	if (!surface->state->layer_shell) {
-		return 1;
+bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer) {
+	if (!surface->state->layer_shell || surface->role) {
+		return false;
 	}
 	surface->wl.layer_surface = zwlr_layer_shell_v1_get_layer_surface(surface->state->layer_shell, surface->wl.surface, output,
 			layer, surface->title);
 	zwlr_layer_surface_v1_add_listener(surface->wl.layer_surface, &layer_listener, surface);
-	return 0;
+	surface->role = NWL_SURFACE_ROLE_LAYER;
+	surface->state->num_surfaces++;
+	return true;
 }
 
-char nwl_surface_role_toplevel(struct nwl_surface *surface) {
-	if (!surface->state->xdg_wm_base) {
-		return 1;
+bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
+	if (!surface->state->xdg_wm_base || surface->role) {
+		return false;
 	}
 	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->xdg_wm_base, surface->wl.surface);
 	surface->wl.xdg_toplevel = xdg_surface_get_toplevel(surface->wl.xdg_surface);
@@ -142,5 +144,7 @@ char nwl_surface_role_toplevel(struct nwl_surface *surface) {
 		surface->wl.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->decoration, surface->wl.xdg_toplevel);
 		zxdg_toplevel_decoration_v1_add_listener(surface->wl.xdg_decoration, &decoration_listener, surface);
 	}
-	return 0;
+	surface->role = NWL_SURFACE_ROLE_TOPLEVEL;
+	surface->state->num_surfaces++;
+	return true;
 }
