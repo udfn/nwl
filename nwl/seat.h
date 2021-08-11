@@ -110,7 +110,7 @@ struct nwl_keyboard_event {
 
 void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t name);
 void nwl_seat_clear_focus(struct nwl_surface *surface);
-void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, struct nwl_surface *surface, const char *cursor);
+void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor);
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y);
 
 #endif

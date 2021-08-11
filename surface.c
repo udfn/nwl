@@ -57,9 +57,11 @@ static int allocate_shm_file(size_t size) {
 }
 
 static void destroy_shm_pool(struct nwl_surface_shm *shm) {
-	wl_shm_pool_destroy(shm->pool);
-	munmap(shm->data, shm->size);
-	close(shm->fd);
+	if (shm->fd) {
+		wl_shm_pool_destroy(shm->pool);
+		munmap(shm->data, shm->size);
+		close(shm->fd);
+	}
 }
 
 static void allocate_wl_shm_pool(struct nwl_surface *surface) {
@@ -74,7 +76,7 @@ static void allocate_wl_shm_pool(struct nwl_surface *surface) {
 	}
 	int fd = allocate_shm_file(pool_size);
 	shm->fd = fd;
-	shm->data = mmap(NULL,pool_size,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	shm->pool = wl_shm_create_pool(surface->state->shm, fd, pool_size);
 	surface->renderer.impl->surface_create(surface, NWL_SURFACE_RENDER_SHM, scaled_width, scaled_height);
 	return;

@@ -206,9 +206,13 @@ static const struct wl_keyboard_listener keyboard_listener = {
 };
 
 // Should there be a nice static list of cursors to try 🤔
-void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, struct nwl_surface *surface, const char *cursor) {
+void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 	if (cursor == NULL) {
 		wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, NULL, 0, 0);
+		return;
+	}
+	struct nwl_surface *surface = seat->pointer_focus;
+	if (!surface) {
 		return;
 	}
 	if ((int)seat->state->cursor_theme_size != surface->scale*24) {
@@ -225,18 +229,22 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, struct nwl_surface *surf
 	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(seat->pointer_cursor->images[0]);
 	wl_surface_attach(seat->pointer_surface, cursbuffer, 0,0);
 	wl_surface_commit(seat->pointer_surface);
+	// Divide hotspot by scale, why? Because the compositor multiplies it by the scale!
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, seat->pointer_surface,
-		seat->pointer_cursor->images[0]->hotspot_x, seat->pointer_cursor->images[0]->hotspot_y);
+		seat->pointer_cursor->images[0]->hotspot_x/surface->scale,
+		seat->pointer_cursor->images[0]->hotspot_y/surface->scale);
 }
 
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y) {
-	if (surface->role && surface->role != NWL_SURFACE_ROLE_CURSOR) {
+	if (!seat->pointer_focus || (surface->role && surface->role != NWL_SURFACE_ROLE_CURSOR)) {
 		return false;
 	}
 	// Cursor surfaces can always be the desired size?
-	if (surface->width != surface->desired_width || surface->height != surface->desired_height) {
+	if (surface->width != surface->desired_width ||
+			surface->height != surface->desired_height || seat->pointer_focus->scale != surface->scale) {
 		surface->width = surface->desired_width;
 		surface->height = surface->desired_height;
+		surface->scale = seat->pointer_focus->scale;
 		nwl_surface_apply_size(surface);
 	}
 	if (!surface->role) {
@@ -258,7 +266,7 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 	seat->pointer_event->serial = serial;
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_MOTION | NWL_POINTER_EVENT_FOCUS;
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
-		nwl_seat_set_pointer_cursor(seat, nwlsurf, "left_ptr");
+		nwl_seat_set_pointer_cursor(seat, "left_ptr");
 	}
 }
 
