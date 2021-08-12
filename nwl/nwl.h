@@ -79,6 +79,7 @@ struct nwl_state {
 		// The global disappears!
 		void (*global_remove)(struct nwl_state *statem, struct wl_registry *registry, uint32_t name);
 	} events;
+	const char *xdg_app_id; // This app_id is conveniently automagically set on xdg_toplevels, if not null
 	void *userdata;
 };
 

@@ -2,7 +2,6 @@
 #include <wayland-client.h>
 #include <wayland-cursor.h>
 #include <xkbcommon/xkbcommon.h>
-#include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -184,31 +183,31 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 		uint32_t name, const char *interface, uint32_t version) {
 	struct nwl_state *state = data;
 	if (state->events.global_add &&
-			state->events.global_add(state,reg,name,interface,version)) {
+			state->events.global_add(state, reg, name, interface, version)) {
 		return;
 	}
-	if (strcmp(interface,wl_compositor_interface.name) == 0) {
+	if (strcmp(interface, wl_compositor_interface.name) == 0) {
 		state->compositor = nwl_registry_bind(reg, name, &wl_compositor_interface, version);
-	} else if (strcmp(interface,zwlr_layer_shell_v1_interface.name) == 0) {
+	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		state->layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version);
-	} else if (strcmp(interface,xdg_wm_base_interface.name) == 0) {
+	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
 		state->xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version);
 		xdg_wm_base_add_listener(state->xdg_wm_base, &wm_base_listener, state);
-	} else if (strcmp(interface,wl_seat_interface.name) == 0) {
+	} else if (strcmp(interface, wl_seat_interface.name) == 0) {
 		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version);
 		nwl_seat_create(newseat, state, name);
-	} else if (strcmp(interface,wl_shm_interface.name) == 0) {
+	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
 		state->shm = nwl_registry_bind(reg, name, &wl_shm_interface, version);
-	} else if (strcmp(interface,zxdg_decoration_manager_v1_interface.name) == 0) {
+	} else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
 		state->decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version);
-	} else if (strcmp(interface,wl_output_interface.name) == 0) {
+	} else if (strcmp(interface, wl_output_interface.name) == 0) {
 		struct wl_output *newoutput = nwl_registry_bind(reg, name, &wl_output_interface, version);
 		nwl_output_create(newoutput, state, name);
-	} else if (strcmp(interface,wp_viewporter_interface.name) == 0) {
+	} else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
 		state->viewporter = nwl_registry_bind(reg, name, &wp_viewporter_interface, version);
-	} else if (strcmp(interface,wl_subcompositor_interface.name) == 0) {
+	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
 		state->subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version);
-	} else if (strcmp(interface,zxdg_output_manager_v1_interface.name) == 0) {
+	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
 		state->xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version);
 	}
 }

@@ -342,6 +342,11 @@ void nwl_surface_apply_size(struct nwl_surface *surface) {
 		sub->scale = surface->scale;
 		nwl_surface_apply_size(sub);
 	}
+	// This can happen if a surface doesn't have a size yet
+	// ... maybe a better way would be to force at least a 1x1 size?
+	if (!surface->width || !surface->height) {
+		return;
+	}
 	// Disgusting subsurface hack
 	if (surface->parent) {
 		nwl_surface_real_apply_size(surface);
@@ -381,7 +386,7 @@ void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 	}
 }
 
-bool nwl_surface_role_subsurface(struct nwl_surface *parent, struct nwl_surface *surface) {
+bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent) {
 	if (surface->role) {
 		return false;
 	}

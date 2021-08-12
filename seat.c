@@ -18,6 +18,9 @@ static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, 
 		int32_t fd, uint32_t size) {
 	UNUSED(wl_keyboard);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
+	if (format == WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP) {
+		return;
+	}
 	if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
 		fprintf(stderr, "I don't understand keymap format %i :(\n", format);
 		close(fd);
@@ -204,6 +207,27 @@ static const struct wl_keyboard_listener keyboard_listener = {
 	handle_keyboard_modifiers,
 	handle_keyboard_repeat
 };
+
+// Just a convenience function because reasons
+void nwl_seat_get_pointer_cursor_metrics(struct nwl_seat *seat, int32_t *width, int32_t *height, int32_t *hotspot_x, int32_t *hotspot_y) {
+	if (!seat->pointer_cursor) {
+		return;
+	}
+	int scale = seat->state->cursor_theme_size/24;
+	if (width) {
+		*width = seat->pointer_cursor->images[0]->width/scale;
+	}
+	if (height) {
+		*height = seat->pointer_cursor->images[0]->height/scale;
+	}
+	if (hotspot_x) {
+		*hotspot_x = seat->pointer_cursor->images[0]->hotspot_x/scale;
+	}
+	if (hotspot_y) {
+		*hotspot_y = seat->pointer_cursor->images[0]->hotspot_y/scale;
+	}
+}
+
 
 // Should there be a nice static list of cursors to try 🤔
 void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {

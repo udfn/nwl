@@ -6,6 +6,7 @@
 #include <wayland-client.h>
 #include "seat.h"
 
+struct xdg_positioner;
 typedef void* EGLSurface;
 
 enum nwl_surface_flags {
@@ -96,6 +97,7 @@ struct nwl_surface {
 		struct zwlr_layer_surface_v1 *layer_surface;
 		struct xdg_surface *xdg_surface;
 		struct xdg_toplevel *xdg_toplevel;
+		struct xdg_popup *xdg_popup;
 		struct zxdg_toplevel_decoration_v1 *xdg_decoration;
 		struct wp_viewport *viewport;
 		struct wl_callback *frame_cb;
@@ -140,8 +142,8 @@ void nwl_surface_apply_size(struct nwl_surface *surface);
 void nwl_surface_swapbuffers(struct nwl_surface *surface);
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool rendernow);
 
-bool nwl_surface_role_subsurface(struct nwl_surface *parent, struct nwl_surface *surface);
+bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent);
 bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer);
 bool nwl_surface_role_toplevel(struct nwl_surface *surface);
-
+bool nwl_surface_role_popup(struct nwl_surface *surface, struct nwl_surface *parent, struct xdg_positioner *positioner);
 #endif

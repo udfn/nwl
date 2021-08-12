@@ -34,7 +34,7 @@ static void handle_surface_configure(void *data, struct xdg_surface *xdg_surface
 	struct nwl_surface *surf = data;
 	xdg_surface_ack_configure(xdg_surface, serial);
 	// Ugly hack!
-	xdg_surface_set_window_geometry(xdg_surface, 0,0, surf->width, surf->height);
+	xdg_surface_set_window_geometry(xdg_surface, 0, 0, surf->width, surf->height);
 	nwl_surface_apply_size(surf);
 }
 
@@ -102,6 +102,34 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 	handle_toplevel_close
 };
 
+static void handle_popup_configure(void *data, struct xdg_popup *xdg_popup, int32_t x, int32_t y, int32_t width, int32_t height) {
+	UNUSED(xdg_popup);
+	struct nwl_surface *surf = data;
+	surf->width = width;
+	surf->height = height;
+	UNUSED(x);
+	UNUSED(y);
+}
+
+static void handle_popup_done(void *data, struct xdg_popup *xdg_popup) {
+	UNUSED(xdg_popup);
+	struct nwl_surface *surf = data;
+	nwl_surface_destroy_later(surf);
+}
+
+static void handle_popup_repositioned(void *data, struct xdg_popup *xdg_popup, uint32_t token) {
+	UNUSED(data);
+	UNUSED(xdg_popup);
+	UNUSED(token);
+	// whatever
+}
+
+static const struct xdg_popup_listener popup_listener = {
+	handle_popup_configure,
+	handle_popup_done,
+	handle_popup_repositioned
+};
+
 static void handle_decoration_configure(
 		void *data,
 		struct zxdg_toplevel_decoration_v1 *zxdg_toplevel_decoration_v1,
@@ -144,7 +172,24 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 		surface->wl.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->decoration, surface->wl.xdg_toplevel);
 		zxdg_toplevel_decoration_v1_add_listener(surface->wl.xdg_decoration, &decoration_listener, surface);
 	}
+	if (surface->state->xdg_app_id) {
+		xdg_toplevel_set_app_id(surface->wl.xdg_toplevel, surface->state->xdg_app_id);
+	}
 	surface->role = NWL_SURFACE_ROLE_TOPLEVEL;
 	surface->state->num_surfaces++;
+	return true;
+}
+
+bool nwl_surface_role_popup(struct nwl_surface *surface, struct nwl_surface *parent, struct xdg_positioner *positioner) {
+	if (!surface->state->xdg_wm_base || surface->role || (parent != NULL && !parent->wl.xdg_surface)) {
+		return false;
+	}
+	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->xdg_wm_base, surface->wl.surface);
+	surface->wl.xdg_popup = xdg_surface_get_popup(surface->wl.xdg_surface, parent ? parent->wl.xdg_surface : NULL, positioner);
+	surface->role = NWL_SURFACE_ROLE_POPUP;
+	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
+	xdg_popup_add_listener(surface->wl.xdg_popup, &popup_listener, surface);
+	// Add to num_surfaces? How about to parent as a child?
+	// Nah, for now that will just have to be manually managed :)
 	return true;
 }
