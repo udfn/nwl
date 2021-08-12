@@ -42,7 +42,7 @@ enum nwl_pointer_event_changed {
 	NWL_POINTER_EVENT_FOCUS = 1 << 0,
 	NWL_POINTER_EVENT_BUTTON = 1 << 1,
 	NWL_POINTER_EVENT_MOTION = 1 << 2,
-	NWL_POINTER_EVENT_AXIS = 1 < 3,
+	NWL_POINTER_EVENT_AXIS = 1 << 3,
 };
 
 enum nwl_pointer_buttons {

@@ -22,7 +22,7 @@ static void nwl_cairo_state_destroy(void *data) {
 	free(cairodata);
 }
 
-struct nwl_state_sub_impl cairo_subimpl = {
+static struct nwl_state_sub_impl cairo_subimpl = {
 	nwl_cairo_state_destroy
 };
 
@@ -73,7 +73,7 @@ static bool nwl_cairo_render(struct nwl_surface *surface) {
 	return c->renderfunc(surface, c->surface);
 }
 
-struct nwl_renderer_impl cairo_impl = {
+static struct nwl_renderer_impl cairo_impl = {
 	nwl_cairo_get_stride,
 	nwl_cairo_create,
 	nwl_cairo_set_size,

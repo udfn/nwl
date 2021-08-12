@@ -129,7 +129,6 @@ static void egl_surface_applysize(struct nwl_surface *surface) {
 	uint32_t scaled_width = surface->width * surface->scale;
 	uint32_t scaled_height = surface->height * surface->scale;
 	if (!egl->window) {
-		struct nwl_surface_egl *egl = surface->render.data;
 		egl->window = wl_egl_window_create(surface->wl.surface, scaled_width, scaled_height);
 		egl->surface = eglCreatePlatformWindowSurfaceEXT(surface->state->egl.display, surface->state->egl.config, egl->window, NULL);
 		surface->renderer.impl->surface_create(surface, NWL_SURFACE_RENDER_EGL, scaled_width, scaled_height);
