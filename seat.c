@@ -579,11 +579,13 @@ void nwl_seat_destroy(void *data) {
 	}
 	if (seat->pointer_event) {
 		free(seat->pointer_event);
+		wl_pointer_destroy(seat->pointer);
 	}
 	if (seat->keyboard_event) {
 		nwl_poll_del_fd(seat->state, seat->keyboard_repeat_fd);
 		free(seat->keyboard_event);
 		close(seat->keyboard_repeat_fd);
+		wl_keyboard_destroy(seat->keyboard);
 	}
 	wl_seat_destroy(seat->wl_seat);
 	free(seat);

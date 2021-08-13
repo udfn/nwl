@@ -11,6 +11,7 @@
 #include <sys/mman.h>
 #include <time.h>
 #include "wlr-layer-shell-unstable-v1.h"
+#include "xdg-decoration-unstable-v1.h"
 #include "xdg-shell.h"
 #include "viewporter.h"
 #include "nwl/nwl.h"
@@ -87,6 +88,9 @@ static void shm_surface_destroy(struct nwl_surface *surface) {
 	if (surface->renderer.impl) {
 		surface->renderer.impl->surface_destroy(surface, NWL_SURFACE_RENDER_SHM);
 		destroy_shm_pool(shm);
+	}
+	if (shm->buffer) {
+		wl_buffer_destroy(shm->buffer);
 	}
 	free(surface->render.data);
 }
@@ -170,15 +174,15 @@ static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
 
 static void cb_done(void *data, struct wl_callback *cb, uint32_t cb_data) {
 	UNUSED(cb_data);
+	struct nwl_surface *surf = data;
+	surf->wl.frame_cb = NULL;
 	wl_callback_destroy(cb);
-	struct nwl_surface *surf = (struct nwl_surface*)data;
 	if (surf->flags & NWL_SURFACE_FLAG_NEEDS_DRAW) {
 		surf->flags = surf->flags & ~NWL_SURFACE_FLAG_NEEDS_DRAW;
 		if (surf->renderer.impl->render(surf)) {
 			nwl_surface_swapbuffers(surf);
 		}
 	}
-	surf->wl.frame_cb = NULL;
 	if (surf->flags & NWL_SURFACE_FLAG_NEEDS_DRAW) {
 		surf->wl.frame_cb = wl_surface_frame(surf->wl.surface);
 		wl_callback_add_listener(surf->wl.frame_cb, &callback_listener, surf);
@@ -241,7 +245,7 @@ static const struct wl_surface_listener surface_listener = {
 };
 
 struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title, enum nwl_surface_renderer renderer) {
-	struct nwl_surface *newsurf = (struct nwl_surface*)calloc(1,sizeof(struct nwl_surface));
+	struct nwl_surface *newsurf = calloc(1, sizeof(struct nwl_surface));
 	newsurf->state = state;
 	newsurf->wl.surface = wl_compositor_create_surface(state->compositor);
 	newsurf->scale = 1;
@@ -263,6 +267,10 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title, enu
 void nwl_surface_destroy(struct nwl_surface *surface) {
 	// clear any focuses
 	nwl_seat_clear_focus(surface);
+	// Probably not necessary but it doesn't hurt to be sure
+	if (surface->wl.frame_cb) {
+		wl_callback_destroy(surface->wl.frame_cb);
+	}
 	// destroy any possible subsurfaces as well
 	struct nwl_surface *subsurf;
 	struct nwl_surface *subsurftmp;
@@ -282,8 +290,15 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 		wl_list_remove(&surfoutput->link);
 		free(surfoutput);
 	}
-	if (surface->wl.xdg_toplevel) {
-		xdg_toplevel_destroy(surface->wl.xdg_toplevel);
+	if (surface->wl.xdg_surface) {
+		if (surface->wl.xdg_toplevel) {
+			if (surface->wl.xdg_decoration) {
+				zxdg_toplevel_decoration_v1_destroy(surface->wl.xdg_decoration);
+			}
+			xdg_toplevel_destroy(surface->wl.xdg_toplevel);
+		} else if (surface->wl.xdg_popup) {
+			xdg_popup_destroy(surface->wl.xdg_popup);
+		}
 		xdg_surface_destroy(surface->wl.xdg_surface);
 	} else if (surface->wl.layer_surface) {
 		zwlr_layer_surface_v1_destroy(surface->wl.layer_surface);
@@ -299,10 +314,14 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 }
 
 void nwl_surface_destroy_later(struct nwl_surface *surface) {
+	if (surface->flags & NWL_SURFACE_FLAG_DESTROY) {
+		return;
+	}
 	surface->flags = NWL_SURFACE_FLAG_DESTROY;
 	surface->state->destroy_surfaces = true;
 	if (surface->wl.frame_cb) {
 		wl_callback_destroy(surface->wl.frame_cb);
+		surface->wl.frame_cb = NULL;
 	}
 }
 

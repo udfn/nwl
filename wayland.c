@@ -145,6 +145,9 @@ static void nwl_output_destroy(void *glob) {
 	if (output->name) {
 		free(output->name);
 	}
+	if (output->xdg_output) {
+		zxdg_output_v1_destroy(output->xdg_output);
+	}
 	wl_list_remove(&output->link);
 	wl_output_set_user_data(output->output, NULL);
 	wl_output_destroy(output->output);
@@ -174,7 +177,7 @@ static void nwl_output_create(struct wl_output *output, struct nwl_state *state,
 }
 
 static void *nwl_registry_bind(struct wl_registry *reg, uint32_t name,
-		const struct wl_interface *interface, int version ) {
+		const struct wl_interface *interface, int version) {
 	uint32_t ver = version > interface->version ? interface->version : version;
 	return wl_registry_bind(reg, name, interface, ver);
 }
@@ -329,8 +332,7 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	wl_list_for_each_safe(surface, surfacetmp, &state->surfaces, link) {
 		nwl_surface_destroy(surface);
 	}
-	struct nwl_state_sub *sub;
-	struct nwl_state_sub *subtmp;
+	struct nwl_state_sub *sub, *subtmp;
 	wl_list_for_each_safe(sub, subtmp, &state->subs, link) {
 		sub->impl->destroy(sub->data);
 		wl_list_remove(&sub->link);
@@ -340,8 +342,7 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	if (state->keyboard_context) {
 		xkb_context_unref(state->keyboard_context);
 	}
-	struct nwl_global *glob;
-	struct nwl_global *globtmp;
+	struct nwl_global *glob, *globtmp;
 	wl_list_for_each_safe(glob, globtmp, &state->globals, link) {
 		glob->impl.destroy(glob->global);
 		wl_list_remove(&glob->link);
