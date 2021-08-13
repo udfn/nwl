@@ -181,11 +181,16 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 }
 
 bool nwl_surface_role_popup(struct nwl_surface *surface, struct nwl_surface *parent, struct xdg_positioner *positioner) {
-	if (!surface->state->xdg_wm_base || surface->role || (parent != NULL && !parent->wl.xdg_surface)) {
+	if (!surface->state->xdg_wm_base || surface->role || (parent != NULL &&
+			!parent->wl.xdg_surface && !parent->wl.layer_surface)) {
 		return false;
 	}
 	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->xdg_wm_base, surface->wl.surface);
-	surface->wl.xdg_popup = xdg_surface_get_popup(surface->wl.xdg_surface, parent ? parent->wl.xdg_surface : NULL, positioner);
+	struct xdg_surface *xdg_parent = parent ? parent->wl.xdg_surface : NULL;
+	surface->wl.xdg_popup = xdg_surface_get_popup(surface->wl.xdg_surface, xdg_parent, positioner);
+	if (parent && !xdg_parent) {
+		zwlr_layer_surface_v1_get_popup(parent->wl.layer_surface, surface->wl.xdg_popup);
+	}
 	surface->role = NWL_SURFACE_ROLE_POPUP;
 	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
 	xdg_popup_add_listener(surface->wl.xdg_popup, &popup_listener, surface);
