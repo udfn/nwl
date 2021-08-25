@@ -68,9 +68,9 @@ static int nwl_cairo_get_stride(enum wl_shm_format format, uint32_t width) {
 	return cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
 }
 
-static bool nwl_cairo_render(struct nwl_surface *surface) {
+static void nwl_cairo_render(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->renderer.data;
-	return c->renderfunc(surface, c->surface);
+	c->renderfunc(surface, c->surface);
 }
 
 static struct nwl_renderer_impl cairo_impl = {

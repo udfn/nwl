@@ -260,7 +260,7 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 }
 
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y) {
-	if (!seat->pointer_focus || (surface->role && surface->role != NWL_SURFACE_ROLE_CURSOR)) {
+	if (!seat->pointer_focus || (surface->role_id && surface->role_id != NWL_SURFACE_ROLE_CURSOR)) {
 		return false;
 	}
 	// Cursor surfaces can always be the desired size?
@@ -271,8 +271,8 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 		surface->scale = seat->pointer_focus->scale;
 		nwl_surface_apply_size(surface);
 	}
-	if (!surface->role) {
-		surface->role = NWL_SURFACE_ROLE_CURSOR;
+	if (!surface->role_id) {
+		surface->role_id = NWL_SURFACE_ROLE_CURSOR;
 		wl_surface_commit(surface->wl.surface);
 	}
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, surface->wl.surface, hotspot_x, hotspot_y);

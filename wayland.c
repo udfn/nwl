@@ -275,10 +275,9 @@ static void nwl_wayland_poll_display(struct nwl_state *state, void *data) {
 	UNUSED(data);
 	wl_display_dispatch(state->display);
 	if (state->destroy_surfaces) {
-		struct nwl_surface *surface;
-		struct nwl_surface *surfacetmp;
-		wl_list_for_each_safe(surface, surfacetmp, &state->surfaces, link) {
-			if (surface->flags & NWL_SURFACE_FLAG_DESTROY) {
+		struct nwl_surface *surface, *stmp;
+		wl_list_for_each_safe(surface, stmp, &state->surfaces, link) {
+			if (surface->states & NWL_SURFACE_STATE_DESTROY) {
 				nwl_surface_destroy(surface);
 			}
 		}
