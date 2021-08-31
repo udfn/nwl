@@ -3,7 +3,6 @@
 #include <wayland-egl.h>
 #include <epoxy/egl.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -16,6 +15,9 @@
 #include "viewporter.h"
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
+
+// Is in wayland.c
+void surface_mark_dirty(struct nwl_surface *surface);
 
 static void randname(char *buf) {
 	struct timespec ts;
@@ -78,7 +80,7 @@ static void allocate_wl_shm_pool(struct nwl_surface *surface) {
 	int fd = allocate_shm_file(pool_size);
 	shm->fd = fd;
 	shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-	shm->pool = wl_shm_create_pool(surface->state->shm, fd, pool_size);
+	shm->pool = wl_shm_create_pool(surface->state->wl.shm, fd, pool_size);
 	surface->renderer.impl->surface_create(surface, NWL_SURFACE_RENDER_SHM, scaled_width, scaled_height);
 	return;
 }
@@ -173,16 +175,13 @@ static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
 }
 
 void nwl_surface_render(struct nwl_surface *surface) {
+	surface->rendering = true;
 	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_DRAW;
 	if (surface->states & NWL_SURFACE_STATE_NEEDS_APPLY_SIZE) {
 		nwl_surface_real_apply_size(surface);
 	}
 	surface->renderer.impl->render(surface);
-	if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW && !surface->wl.frame_cb) {
-		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
-		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
-		wl_surface_commit(surface->wl.surface);
-	}
+	surface->rendering = false;
 }
 
 static void cb_done(void *data, struct wl_callback *cb, uint32_t cb_data) {
@@ -215,7 +214,8 @@ static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
 	}
 	if (scale != surf->scale) {
 		surf->scale = scale;
-		nwl_surface_apply_size(surf);
+		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+		nwl_surface_set_need_draw(surf, true);
 	}
 }
 
@@ -253,11 +253,12 @@ static const struct wl_surface_listener surface_listener = {
 struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title, enum nwl_surface_renderer renderer) {
 	struct nwl_surface *newsurf = calloc(1, sizeof(struct nwl_surface));
 	newsurf->state = state;
-	newsurf->wl.surface = wl_compositor_create_surface(state->compositor);
+	newsurf->wl.surface = wl_compositor_create_surface(state->wl.compositor);
 	newsurf->scale = 1;
 	newsurf->title = title;
 	wl_list_init(&newsurf->subsurfaces);
 	wl_list_init(&newsurf->outputs);
+	wl_list_init(&newsurf->dirtlink);
 	wl_list_insert(&state->surfaces, &newsurf->link);
 	wl_surface_set_user_data(newsurf->wl.surface, newsurf);
 	wl_surface_add_listener(newsurf->wl.surface, &surface_listener, newsurf);
@@ -276,14 +277,10 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	if (surface->wl.frame_cb) {
 		wl_callback_destroy(surface->wl.frame_cb);
 	}
+	wl_list_remove(&surface->link);
 	// destroy any possible subsurfaces as well
-	struct nwl_surface *subsurf;
-	struct nwl_surface *subsurftmp;
-	if (!surface->parent) {
-		wl_list_remove(&surface->link);
-	}
-	wl_list_for_each_safe(subsurf, subsurftmp, &surface->subsurfaces, sublink) {
-		wl_list_remove(&subsurf->sublink);
+	struct nwl_surface *subsurf, *subsurftmp;
+	wl_list_for_each_safe(subsurf, subsurftmp, &surface->subsurfaces, link) {
 		nwl_surface_destroy(subsurf);
 	}
 	if (surface->impl.destroy) {
@@ -323,19 +320,19 @@ void nwl_surface_destroy_later(struct nwl_surface *surface) {
 		return;
 	}
 	surface->states |= NWL_SURFACE_STATE_DESTROY;
-	surface->state->destroy_surfaces = true;
 	if (surface->wl.frame_cb) {
 		wl_callback_destroy(surface->wl.frame_cb);
 		surface->wl.frame_cb = NULL;
 	}
+	surface_mark_dirty(surface);
 }
 
 bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height) {
-	if (!surface->state->viewporter) {
+	if (!surface->state->wl.viewporter) {
 		return false;
 	}
 	if (!surface->wl.viewport) {
-		surface->wl.viewport = wp_viewporter_get_viewport(surface->state->viewporter, surface->wl.surface);
+		surface->wl.viewport = wp_viewporter_get_viewport(surface->state->wl.viewporter, surface->wl.surface);
 	}
 	wp_viewport_set_destination(surface->wl.viewport, width, height);
 	if (width == -1 && height == -1) {
@@ -360,62 +357,40 @@ void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t 
 	}
 }
 
-void nwl_surface_apply_size(struct nwl_surface *surface) {
-	// This can happen if a surface doesn't have a size yet
-	// ... maybe a better way would be to force at least a 1x1 size?
-	if (!surface->width || !surface->height) {
-		return;
-	}
-	if (!surface->render.data) {
-		return;
-	}
-	nwl_surface_real_apply_size(surface);
-	if (!(surface->states & NWL_SURFACE_STATE_NEEDS_DRAW)) {
-		nwl_surface_set_need_draw(surface, true);
-	}
-}
-
 void nwl_surface_swapbuffers(struct nwl_surface *surface) {
 	surface->frame++;
+	if (!surface->wl.frame_cb) {
+		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
+		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
+	}
 	uint32_t scaled_width, scaled_height;
 	scaled_width = surface->width*surface->scale;
 	scaled_height = surface->height*surface->scale;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
 	surface->render.impl.swapbuffers(surface);
-
-	if (!surface->wl.frame_cb) {
-		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
-		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
-		wl_surface_commit(surface->wl.surface);
-	}
 }
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
-	if (surface->wl.frame_cb) {
-		surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
+	surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
+	if (surface->wl.frame_cb || surface->rendering) {
 		return;
 	}
 	if (render) {
 		nwl_surface_render(surface);
 		return;
-	} else if (!surface->wl.frame_cb) {
-		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
-		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
-		wl_surface_commit(surface->wl.surface);
 	}
-	surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
+	surface_mark_dirty(surface);
 }
 
 bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent) {
 	if (surface->role_id) {
 		return false;
 	}
-	surface->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->state->subcompositor,
+	surface->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->state->wl.subcompositor,
 			surface->wl.surface, parent->wl.surface);
 	surface->parent = parent;
-	wl_list_insert(&parent->subsurfaces, &surface->sublink);
-	// hack, remove subsurfaces from the main surfaces list
 	wl_list_remove(&surface->link);
+	wl_list_insert(&parent->subsurfaces, &surface->link);
 	surface->role_id = NWL_SURFACE_ROLE_SUB;
 	return true;
 }

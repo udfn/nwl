@@ -90,8 +90,8 @@ struct nwl_renderer {
 };
 
 struct nwl_surface {
-	struct wl_list link; // link for nwl_state
-	struct wl_list sublink; // subsurface link
+	struct wl_list link; // either linked to nwl_state, or another nwl_surface if subsurface
+	struct wl_list dirtlink; // link if dirty
 	struct nwl_state *state;
 	struct {
 		struct wl_surface *surface;
@@ -109,6 +109,7 @@ struct nwl_surface {
 		} impl;
 	} render;
 	struct nwl_renderer renderer;
+	bool rendering;
 	uint32_t width, height;
 	uint32_t desired_width, desired_height;
 	uint32_t actual_width, actual_height;
@@ -149,7 +150,6 @@ void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
 bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height);
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height);
-void nwl_surface_apply_size(struct nwl_surface *surface);
 void nwl_surface_swapbuffers(struct nwl_surface *surface);
 void nwl_surface_render(struct nwl_surface *surface);
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool rendernow);

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <unistd.h>
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
@@ -16,7 +17,8 @@
 #include "viewporter.h"
 
 struct nwl_poll {
-	int efd;
+	int epfd;
+	int dirt_eventfd;
 	int numfds;
 	struct epoll_event *ev;
 	struct wl_list data; // nwl_poll_data
@@ -165,8 +167,8 @@ static void nwl_output_create(struct wl_output *output, struct nwl_state *state,
 	glob->global = nwloutput;
 	glob->name = name;
 	glob->impl.destroy = nwl_output_destroy;
-	if (state->xdg_output_manager) {
-		nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(state->xdg_output_manager, output);
+	if (state->wl.xdg_output_manager) {
+		nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(state->wl.xdg_output_manager, output);
 		zxdg_output_v1_add_listener(nwloutput->xdg_output, &xdg_output_listener, nwloutput);
 	}
 	wl_list_insert(&state->globals, &glob->link);
@@ -190,28 +192,28 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 		return;
 	}
 	if (strcmp(interface, wl_compositor_interface.name) == 0) {
-		state->compositor = nwl_registry_bind(reg, name, &wl_compositor_interface, version);
+		state->wl.compositor = nwl_registry_bind(reg, name, &wl_compositor_interface, version);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
-		state->layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version);
+		state->wl.layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version);
 	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-		state->xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version);
-		xdg_wm_base_add_listener(state->xdg_wm_base, &wm_base_listener, state);
+		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version);
+		xdg_wm_base_add_listener(state->wl.xdg_wm_base, &wm_base_listener, state);
 	} else if (strcmp(interface, wl_seat_interface.name) == 0) {
 		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version);
 		nwl_seat_create(newseat, state, name);
 	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
-		state->shm = nwl_registry_bind(reg, name, &wl_shm_interface, version);
+		state->wl.shm = nwl_registry_bind(reg, name, &wl_shm_interface, version);
 	} else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
-		state->decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version);
+		state->wl.decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version);
 	} else if (strcmp(interface, wl_output_interface.name) == 0) {
 		struct wl_output *newoutput = nwl_registry_bind(reg, name, &wl_output_interface, version);
 		nwl_output_create(newoutput, state, name);
 	} else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
-		state->viewporter = nwl_registry_bind(reg, name, &wp_viewporter_interface, version);
+		state->wl.viewporter = nwl_registry_bind(reg, name, &wp_viewporter_interface, version);
 	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
-		state->subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version);
+		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version);
 	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
-		state->xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version);
+		state->wl.xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version);
 	}
 }
 
@@ -255,12 +257,12 @@ void nwl_poll_add_fd(struct nwl_state *state, int fd,
 	polldata->callback = callback;
 	ep.data.ptr = polldata;
 	ep.events = EPOLLIN;
-	epoll_ctl(state->poll->efd, EPOLL_CTL_ADD, fd, &ep);
+	epoll_ctl(state->poll->epfd, EPOLL_CTL_ADD, fd, &ep);
 }
 
 void nwl_poll_del_fd(struct nwl_state *state, int fd) {
 	state->poll->ev = realloc(state->poll->ev, sizeof(struct epoll_event)* --state->poll->numfds);
-	epoll_ctl(state->poll->efd, EPOLL_CTL_DEL, fd, NULL);
+	epoll_ctl(state->poll->epfd, EPOLL_CTL_DEL, fd, NULL);
 	struct nwl_poll_data *data;
 	wl_list_for_each(data, &state->poll->data, link) {
 		if (data->fd == fd) {
@@ -271,25 +273,40 @@ void nwl_poll_del_fd(struct nwl_state *state, int fd) {
 	}
 }
 
+void surface_mark_dirty(struct nwl_surface *surface) {
+	// This isn't really thread-safe!
+	if (wl_list_empty(&surface->dirtlink)) {
+		wl_list_insert(&surface->state->surfaces_dirty, &surface->dirtlink);
+	}
+	eventfd_write(surface->state->poll->dirt_eventfd, 1);
+}
+
 static void nwl_wayland_poll_display(struct nwl_state *state, void *data) {
 	UNUSED(data);
-	wl_display_dispatch(state->display);
-	if (state->destroy_surfaces) {
-		struct nwl_surface *surface, *stmp;
-		wl_list_for_each_safe(surface, stmp, &state->surfaces, link) {
-			if (surface->states & NWL_SURFACE_STATE_DESTROY) {
-				nwl_surface_destroy(surface);
-			}
+	wl_display_dispatch(state->wl.display);
+}
+
+static void nwl_wayland_handle_dirt(struct nwl_state *state, void *data) {
+	UNUSED(data);
+	// Yeah sure, errors might happen. Who cares?
+	eventfd_read(state->poll->dirt_eventfd, NULL);
+	struct nwl_surface *surface, *stmp;
+	wl_list_for_each_safe(surface, stmp, &state->surfaces_dirty, dirtlink) {
+		if (surface->states & NWL_SURFACE_STATE_DESTROY) {
+			nwl_surface_destroy(surface);
+		} else if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW && !surface->wl.frame_cb) {
+			nwl_surface_render(surface);
+			wl_list_init(&surface->dirtlink);
 		}
-		state->destroy_surfaces = false;
 	}
+	wl_list_init(&state->surfaces_dirty);
 }
 
 void nwl_wayland_run(struct nwl_state *state) {
 	// Everything about this seems very flaky.. but it works!
 	while (state->run_with_zero_surfaces || state->num_surfaces) {
-		wl_display_flush(state->display);
-		int nfds = epoll_wait(state->poll->efd, state->poll->ev, state->poll->numfds, -1);
+		wl_display_flush(state->wl.display);
+		int nfds = epoll_wait(state->poll->epfd, state->poll->ev, state->poll->numfds, -1);
 		if (nfds == -1 && errno != EINTR) {
 			perror("error while polling");
 			return;
@@ -306,22 +323,25 @@ char nwl_wayland_init(struct nwl_state *state) {
 	wl_list_init(&state->seats);
 	wl_list_init(&state->outputs);
 	wl_list_init(&state->surfaces);
+	wl_list_init(&state->surfaces_dirty);
 	wl_list_init(&state->globals);
 	wl_list_init(&state->poll->data);
 	wl_list_init(&state->subs);
-	state->display = wl_display_connect(NULL);
-	if (!state->display) {
+	state->wl.display = wl_display_connect(NULL);
+	if (!state->wl.display) {
 		fprintf(stderr, "couldn't connect to Wayland display.\n");
 		return 1;
 	}
-	state->poll->efd = epoll_create1(0);
-	nwl_poll_add_fd(state, wl_display_get_fd(state->display), nwl_wayland_poll_display, NULL);
-	state->registry = wl_display_get_registry(state->display);
-	wl_registry_add_listener(state->registry, &reg_listener, state);
-	wl_display_roundtrip(state->display);
-	if (state->xdg_output_manager) {
+	state->poll->epfd = epoll_create1(0);
+	state->poll->dirt_eventfd = eventfd(0, EFD_NONBLOCK);
+	nwl_poll_add_fd(state, wl_display_get_fd(state->wl.display), nwl_wayland_poll_display, NULL);
+	nwl_poll_add_fd(state, state->poll->dirt_eventfd, nwl_wayland_handle_dirt, NULL);
+	state->wl.registry = wl_display_get_registry(state->wl.display);
+	wl_registry_add_listener(state->wl.registry, &reg_listener, state);
+	wl_display_roundtrip(state->wl.display);
+	if (state->wl.xdg_output_manager) {
 		// Extra roundtrip so output information is properly filled in
-		wl_display_roundtrip(state->display);
+		wl_display_roundtrip(state->wl.display);
 	}
 	return 0;
 }
@@ -350,10 +370,12 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	if (state->cursor_theme) {
 		wl_cursor_theme_destroy(state->cursor_theme);
 	}
-	nwl_poll_del_fd(state, wl_display_get_fd(state->display));
-	wl_display_disconnect(state->display);
+	nwl_poll_del_fd(state, wl_display_get_fd(state->wl.display));
+	nwl_poll_del_fd(state, state->poll->dirt_eventfd);
+	close(state->poll->dirt_eventfd);
+	wl_display_disconnect(state->wl.display);
 	free(state->poll->ev);
-	close(state->poll->efd);
+	close(state->poll->epfd);
 	free(state->poll);
 }
 

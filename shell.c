@@ -10,13 +10,12 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 	zwlr_layer_surface_v1_ack_configure(layer, serial);
 	if (surf->impl.configure) {
 		surf->impl.configure(surf, width, height);
-		nwl_surface_apply_size(surf);
-		return;
 	} else if (surf->width != width || surf->height != height) {
 		surf->width = width;
 		surf->height = height;
+		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	}
-	nwl_surface_apply_size(surf);
+	nwl_surface_set_need_draw(surf, true);
 }
 
 static void handle_layer_closed(void *data, struct zwlr_layer_surface_v1 *layer) {
@@ -35,7 +34,7 @@ static void handle_surface_configure(void *data, struct xdg_surface *xdg_surface
 	xdg_surface_ack_configure(xdg_surface, serial);
 	// Ugly hack!
 	xdg_surface_set_window_geometry(xdg_surface, 0, 0, surf->width, surf->height);
-	nwl_surface_apply_size(surf);
+	nwl_surface_set_need_draw(surf, true);
 }
 
 static const struct xdg_surface_listener surface_listener = {
@@ -87,6 +86,9 @@ static void handle_toplevel_configure(void *data, struct xdg_toplevel *xdg_tople
 	if (height == 0) {
 		height = surf->desired_height;
 	}
+	if ((uint32_t)width != surf->width || (uint32_t)height != surf->height) {
+		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+	}
 	surf->width = width;
 	surf->height = height;
 }
@@ -107,6 +109,7 @@ static void handle_popup_configure(void *data, struct xdg_popup *xdg_popup, int3
 	struct nwl_surface *surf = data;
 	surf->width = width;
 	surf->height = height;
+	surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	UNUSED(x);
 	UNUSED(y);
 }
@@ -148,11 +151,11 @@ static const struct zxdg_toplevel_decoration_v1_listener decoration_listener = {
 };
 
 bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer) {
-	if (!surface->state->layer_shell || surface->role_id) {
+	if (!surface->state->wl.layer_shell || surface->role_id) {
 		return false;
 	}
-	surface->role.layer.wl = zwlr_layer_shell_v1_get_layer_surface(surface->state->layer_shell, surface->wl.surface, output,
-			layer, surface->title);
+	surface->role.layer.wl = zwlr_layer_shell_v1_get_layer_surface(surface->state->wl.layer_shell,
+			surface->wl.surface, output, layer, surface->title);
 	zwlr_layer_surface_v1_add_listener(surface->role.layer.wl, &layer_listener, surface);
 	surface->role_id = NWL_SURFACE_ROLE_LAYER;
 	surface->state->num_surfaces++;
@@ -160,16 +163,16 @@ bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *
 }
 
 bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
-	if (!surface->state->xdg_wm_base || surface->role_id) {
+	if (!surface->state->wl.xdg_wm_base || surface->role_id) {
 		return false;
 	}
-	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->xdg_wm_base, surface->wl.surface);
+	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->wl.xdg_wm_base, surface->wl.surface);
 	surface->role.toplevel.wl = xdg_surface_get_toplevel(surface->wl.xdg_surface);
 	xdg_toplevel_add_listener(surface->role.toplevel.wl, &toplevel_listener, surface);
 	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
 	xdg_toplevel_set_title(surface->role.toplevel.wl, surface->title);
-	if (surface->state->decoration) {
-		surface->wl.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->decoration, surface->role.toplevel.wl);
+	if (surface->state->wl.decoration) {
+		surface->wl.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->wl.decoration, surface->role.toplevel.wl);
 		zxdg_toplevel_decoration_v1_add_listener(surface->wl.xdg_decoration, &decoration_listener, surface);
 	}
 	if (surface->state->xdg_app_id) {
@@ -182,11 +185,11 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 }
 
 bool nwl_surface_role_popup(struct nwl_surface *surface, struct nwl_surface *parent, struct xdg_positioner *positioner) {
-	if (!surface->state->xdg_wm_base || surface->role_id || (parent != NULL &&
+	if (!surface->state->wl.xdg_wm_base || surface->role_id || (parent != NULL &&
 			!parent->wl.xdg_surface && parent->role_id != NWL_SURFACE_ROLE_LAYER)) {
 		return false;
 	}
-	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->xdg_wm_base, surface->wl.surface);
+	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->wl.xdg_wm_base, surface->wl.surface);
 	struct xdg_surface *xdg_parent = parent ? parent->wl.xdg_surface : NULL;
 	surface->role.popup.wl = xdg_surface_get_popup(surface->wl.xdg_surface, xdg_parent, positioner);
 	if (parent && !xdg_parent) {

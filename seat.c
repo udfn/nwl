@@ -243,9 +243,9 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 		if (seat->state->cursor_theme) {
 			wl_cursor_theme_destroy(seat->state->cursor_theme);
 		} else {
-			seat->pointer_surface = wl_compositor_create_surface(seat->state->compositor);
+			seat->pointer_surface = wl_compositor_create_surface(seat->state->wl.compositor);
 		}
-		seat->state->cursor_theme = wl_cursor_theme_load(NULL, 24 * surface->scale, seat->state->shm);
+		seat->state->cursor_theme = wl_cursor_theme_load(NULL, 24 * surface->scale, seat->state->wl.shm);
 		seat->state->cursor_theme_size = 24 * surface->scale;
 		wl_surface_set_buffer_scale(seat->pointer_surface, surface->scale);
 	}
@@ -269,7 +269,8 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 		surface->width = surface->desired_width;
 		surface->height = surface->desired_height;
 		surface->scale = seat->pointer_focus->scale;
-		nwl_surface_apply_size(surface);
+		surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+		nwl_surface_set_need_draw(surface, true);
 	}
 	if (!surface->role_id) {
 		surface->role_id = NWL_SURFACE_ROLE_CURSOR;

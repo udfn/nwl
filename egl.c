@@ -3,10 +3,10 @@
 #include "nwl/nwl.h"
 
 static char nwl_egl_init(struct nwl_state *state) {
-	state->egl.display = eglGetPlatformDisplayEXT(EGL_PLATFORM_WAYLAND_KHR,state->display,NULL);
-	EGLint major,minor;
+	state->egl.display = eglGetPlatformDisplayEXT(EGL_PLATFORM_WAYLAND_KHR, state->wl.display, NULL);
+	EGLint major, minor;
 	if (!eglInitialize(state->egl.display, &major, &minor)) {
-		fprintf(stderr,"failed to init EGL\n");
+		fprintf(stderr, "failed to init EGL\n");
 		return 1;
 	}
 
@@ -22,11 +22,11 @@ static char nwl_egl_init(struct nwl_state *state) {
 	};
 	EGLint confignum = 0;
 	if (!eglBindAPI(EGL_OPENGL_API)) {
-		fprintf(stderr,"failed to bind OpenGL API\n");
+		fprintf(stderr, "failed to bind OpenGL API\n");
 		return 1;
 	}
 	if (!eglChooseConfig(state->egl.display, config, &state->egl.config, 1, &confignum)) {
-		fprintf(stderr,"failed to choose EGL config\n");
+		fprintf(stderr, "failed to choose EGL config\n");
 		return 1;
 	}
 	EGLint attribs[] = {
@@ -34,7 +34,7 @@ static char nwl_egl_init(struct nwl_state *state) {
 	};
 	state->egl.context = eglCreateContext(state->egl.display, state->egl.config, EGL_NO_CONTEXT, attribs);
 	if (!state->egl.context) {
-		fprintf(stderr,"failed to create EGL context\n");
+		fprintf(stderr, "failed to create EGL context\n");
 		return 1;
 	}
 	return 0;

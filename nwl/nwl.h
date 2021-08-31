@@ -39,19 +39,22 @@ struct nwl_state_sub {
 };
 
 struct nwl_state {
-	struct wl_display *display;
-	struct wl_registry *registry;
-	struct wl_compositor *compositor;
-	struct wl_shm *shm;
-	struct xdg_wm_base *xdg_wm_base;
-	struct zxdg_output_manager_v1 *xdg_output_manager;
-	struct zwlr_layer_shell_v1 *layer_shell;
-	struct zxdg_decoration_manager_v1 *decoration;
-	struct wp_viewporter *viewporter;
-	struct wl_subcompositor *subcompositor;
+	struct {
+		struct wl_display *display;
+		struct wl_registry *registry;
+		struct wl_compositor *compositor;
+		struct wl_shm *shm;
+		struct xdg_wm_base *xdg_wm_base;
+		struct zxdg_output_manager_v1 *xdg_output_manager;
+		struct zwlr_layer_shell_v1 *layer_shell;
+		struct zxdg_decoration_manager_v1 *decoration;
+		struct wp_viewporter *viewporter;
+		struct wl_subcompositor *subcompositor;
+	} wl;
 	struct wl_list seats; // nwl_seat
 	struct wl_list outputs; // nwl_output
 	struct wl_list surfaces; // nwl_surface
+	struct wl_list surfaces_dirty; // nwl_surface dirtlink
 	struct wl_list globals; // nwl_global
 	struct wl_list subs; // nwl_state_sub
 	struct xkb_context *keyboard_context;
@@ -66,7 +69,6 @@ struct nwl_state {
 	uint32_t cursor_theme_size;
 	uint32_t num_surfaces;
 	bool run_with_zero_surfaces;
-	bool destroy_surfaces;
 	struct nwl_poll *poll;
 	struct {
 		// A wild output appears!
@@ -93,7 +95,6 @@ void *nwl_state_get_sub(struct nwl_state *state, struct nwl_state_sub_impl *subi
 void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge trigger, etc?
 	nwl_poll_callback_t callback, void *data);
 void nwl_poll_del_fd(struct nwl_state *state, int fd);
-// To be very inconsistent, this returns true on success..
 bool nwl_egl_try_init(struct nwl_state *state);
 void nwl_egl_uninit(struct nwl_state *state);
 
