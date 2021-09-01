@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/timerfd.h>
-#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include "nwl/nwl.h"
@@ -239,11 +238,12 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 	if (!surface) {
 		return;
 	}
+	if (!seat->pointer_surface) {
+		seat->pointer_surface = wl_compositor_create_surface(seat->state->wl.compositor);
+	}
 	if ((int)seat->state->cursor_theme_size != surface->scale*24) {
 		if (seat->state->cursor_theme) {
 			wl_cursor_theme_destroy(seat->state->cursor_theme);
-		} else {
-			seat->pointer_surface = wl_compositor_create_surface(seat->state->wl.compositor);
 		}
 		seat->state->cursor_theme = wl_cursor_theme_load(NULL, 24 * surface->scale, seat->state->wl.shm);
 		seat->state->cursor_theme_size = 24 * surface->scale;
@@ -251,7 +251,7 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 	}
 	seat->pointer_cursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
 	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(seat->pointer_cursor->images[0]);
-	wl_surface_attach(seat->pointer_surface, cursbuffer, 0,0);
+	wl_surface_attach(seat->pointer_surface, cursbuffer, 0, 0);
 	wl_surface_commit(seat->pointer_surface);
 	// Divide hotspot by scale, why? Because the compositor multiplies it by the scale!
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, seat->pointer_surface,
@@ -513,24 +513,51 @@ static const struct wl_touch_listener touch_listener = {
 	handle_touch_orientation
 };
 */
+
+static void seat_release_keyboard(struct nwl_seat *seat) {
+	nwl_poll_del_fd(seat->state, seat->keyboard_repeat_fd);
+	free(seat->keyboard_event);
+	close(seat->keyboard_repeat_fd);
+	wl_keyboard_release(seat->keyboard);
+	seat->keyboard = NULL;
+}
+
+static void seat_release_pointer(struct nwl_seat *seat) {
+	free(seat->pointer_event);
+	wl_pointer_release(seat->pointer);
+	if (seat->pointer_surface) {
+		wl_surface_destroy(seat->pointer_surface);
+		seat->pointer_surface = NULL;
+	}
+	seat->pointer = NULL;
+}
+
 static void handle_seat_capabilities(void *data, struct wl_seat *seat, uint32_t capabilities) {
 	struct nwl_seat *nwseat = data;
 	if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD) {
-		nwseat->keyboard = wl_seat_get_keyboard(seat);
-		if (!nwseat->state->keyboard_context) {
-			nwseat->state->keyboard_context = xkb_context_new(0);
+		if (!nwseat->keyboard) {
+			nwseat->keyboard = wl_seat_get_keyboard(seat);
+			if (!nwseat->state->keyboard_context) {
+				nwseat->state->keyboard_context = xkb_context_new(0);
+			}
+			nwseat->keyboard_event = calloc(1, sizeof(struct nwl_keyboard_event));
+			nwseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+			nwseat->keyboard_event->seat = nwseat; // Why do events link to the seat like this anyway..
+			nwl_poll_add_fd(nwseat->state, nwseat->keyboard_repeat_fd, nwl_seat_send_key_repeat, nwseat);
+			wl_keyboard_add_listener(nwseat->keyboard, &keyboard_listener, data);
 		}
-		nwseat->keyboard_event = calloc(1, sizeof(struct nwl_keyboard_event));
-		nwseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-		nwseat->keyboard_event->seat = nwseat; // Why do events link to the seat like this anyway..
-		nwl_poll_add_fd(nwseat->state, nwseat->keyboard_repeat_fd, nwl_seat_send_key_repeat, nwseat);
-		wl_keyboard_add_listener(nwseat->keyboard, &keyboard_listener, data);
+	} else if (nwseat->keyboard) {
+		seat_release_keyboard(nwseat);
 	}
 	if (capabilities & WL_SEAT_CAPABILITY_POINTER) {
-		nwseat->pointer = wl_seat_get_pointer(seat);
-		nwseat->pointer_event = calloc(1,sizeof(struct nwl_pointer_event));
-		nwseat->pointer_event->seat = nwseat;
-		wl_pointer_add_listener(nwseat->pointer, &pointer_listener, data);
+		if (!nwseat->pointer) {
+			nwseat->pointer = wl_seat_get_pointer(seat);
+			nwseat->pointer_event = calloc(1, sizeof(struct nwl_pointer_event));
+			nwseat->pointer_event->seat = nwseat;
+			wl_pointer_add_listener(nwseat->pointer, &pointer_listener, data);
+		}
+	} else if (nwseat->pointer) {
+		seat_release_pointer(nwseat);
 	}
 	/*
 	if (capabilities & WL_SEAT_CAPABILITY_TOUCH) {
@@ -567,7 +594,6 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 void nwl_seat_destroy(void *data) {
 	struct nwl_seat *seat = data;
 	wl_list_remove(&seat->link);
-	free(seat->name);
 	if (seat->keyboard_keymap) {
 		xkb_keymap_unref(seat->keyboard_keymap);
 	}
@@ -578,17 +604,14 @@ void nwl_seat_destroy(void *data) {
 		xkb_compose_state_unref(seat->keyboard_compose_state);
 		xkb_compose_table_unref(seat->keyboard_compose_table);
 	}
-	if (seat->pointer_event) {
-		free(seat->pointer_event);
-		wl_pointer_destroy(seat->pointer);
+	if (seat->pointer) {
+		seat_release_pointer(seat);
 	}
-	if (seat->keyboard_event) {
-		nwl_poll_del_fd(seat->state, seat->keyboard_repeat_fd);
-		free(seat->keyboard_event);
-		close(seat->keyboard_repeat_fd);
-		wl_keyboard_destroy(seat->keyboard);
+	if (seat->keyboard) {
+		seat_release_keyboard(seat);
 	}
-	wl_seat_destroy(seat->wl_seat);
+	free(seat->name);
+	wl_seat_release(seat->wl_seat);
 	free(seat);
 }
 
