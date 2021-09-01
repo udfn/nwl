@@ -286,20 +286,29 @@ static void nwl_wayland_poll_display(struct nwl_state *state, void *data) {
 	wl_display_dispatch(state->wl.display);
 }
 
+static bool handle_dirty_surfaces(struct nwl_state *state) {
+	struct nwl_surface *surface, *stmp;
+	wl_list_for_each_safe(surface, stmp, &state->surfaces_dirty, dirtlink) {
+		if (surface->states & NWL_SURFACE_STATE_DESTROY) {
+			bool subs = !wl_list_empty(&surface->subsurfaces);
+			nwl_surface_destroy(surface);
+			if (subs) {
+				// Subsurfaces were destroyed.. Start over to be safe!
+				return true;
+			}
+		} else if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW && !surface->wl.frame_cb) {
+			nwl_surface_render(surface);
+			wl_list_remove(&surface->dirtlink);
+			wl_list_init(&surface->dirtlink); // To make sure it's not in an undefined state..
+		}
+	}
+	return false;
+}
 static void nwl_wayland_handle_dirt(struct nwl_state *state, void *data) {
 	UNUSED(data);
 	// Yeah sure, errors might happen. Who cares?
 	eventfd_read(state->poll->dirt_eventfd, NULL);
-	struct nwl_surface *surface, *stmp;
-	wl_list_for_each_safe(surface, stmp, &state->surfaces_dirty, dirtlink) {
-		if (surface->states & NWL_SURFACE_STATE_DESTROY) {
-			nwl_surface_destroy(surface);
-		} else if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW && !surface->wl.frame_cb) {
-			nwl_surface_render(surface);
-			wl_list_init(&surface->dirtlink);
-		}
-	}
-	wl_list_init(&state->surfaces_dirty);
+	while(handle_dirty_surfaces(state)) { }
 }
 
 void nwl_wayland_run(struct nwl_state *state) {

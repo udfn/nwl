@@ -277,6 +277,9 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	if (surface->wl.frame_cb) {
 		wl_callback_destroy(surface->wl.frame_cb);
 	}
+	if (!wl_list_empty(&surface->dirtlink)) {
+		wl_list_remove(&surface->dirtlink);
+	}
 	wl_list_remove(&surface->link);
 	// destroy any possible subsurfaces as well
 	struct nwl_surface *subsurf, *subsurftmp;
