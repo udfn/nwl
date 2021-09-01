@@ -15,5 +15,6 @@ wl_gen_c = generator(wlscanner,
 wl_gen_h = generator(wlscanner,
 	output: '@BASENAME@.h',
 	arguments: ['client-header', '@INPUT@', '@OUTPUT@'])
-proto_c = wl_gen_c.process(protos)
-proto_h = wl_gen_h.process(protos)
+wlproto_c = wl_gen_c.process(protos)
+wlproto_h = wl_gen_h.process(protos)
+wlprotos = [ wlproto_c, wlproto_h ]

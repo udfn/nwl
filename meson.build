@@ -2,7 +2,7 @@ project('nwl', 'c',
 	default_options: [
 		'c_std=c11'
 	],
-	version: '0.1 not-to-be-used'
+	version: '0.2 do-not-use'
 )
 cc = meson.get_compiler('c')
 wayland_client = dependency('wayland-client')
@@ -22,7 +22,8 @@ nwl_src = [
 	'shell.c',
 	'surface.c',
 	'wayland.c',
-	'cairo.c'
+	'cairo.c',
+	wlprotos
 ]
 nwl_deps = [
 	wayland_client,
@@ -36,10 +37,10 @@ nwl_deps = [
 	xkbc
 ]
 if meson.is_subproject()
-	nwl_lib = static_library('nwl', nwl_src, [proto_c, proto_h], dependencies:nwl_deps)
-	nwl_dep = declare_dependency(link_with: nwl_lib, sources:[proto_h], include_directories:'.')
+	nwl_lib = static_library('nwl', nwl_src, dependencies:nwl_deps)
+	nwl_dep = declare_dependency(link_with: nwl_lib, sources:[wlproto_h], include_directories:'.')
 else
 	pkgc = import('pkgconfig')
-	nwl_lib = library('nwl', nwl_src, [proto_c,proto_h], dependencies:nwl_deps, install:true)
+	nwl_lib = library('nwl', nwl_src, dependencies:nwl_deps, install:true)
 	pkgc.generate(nwl_lib)
 endif
