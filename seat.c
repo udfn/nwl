@@ -282,12 +282,12 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 
 static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
 	UNUSED(pointer);
-	struct nwl_seat *seat = (struct nwl_seat*)data;
+	struct nwl_seat *seat = data;
 	struct nwl_surface *nwlsurf = wl_surface_get_user_data(surface);
+	seat->pointer_focus = nwlsurf;
 	seat->pointer_event->surface_x = surface_x;
 	seat->pointer_event->surface_y = surface_y;
 	seat->pointer_event->focus = 1;
-	seat->pointer_focus = nwlsurf;
 	seat->pointer_event->serial = serial;
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_MOTION | NWL_POINTER_EVENT_FOCUS;
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
@@ -329,7 +329,7 @@ static char map_linuxmbutton_to_nwl(uint32_t button) {
 		case BTN_SIDE:
 			return NWL_MOUSE_BACK;
 		default:
-			fprintf(stderr,"Unknown mouse button %x\n",button);
+			fprintf(stderr, "Unknown mouse button %x\n", button);
 			return 0;
 	}
 }
@@ -376,9 +376,9 @@ static void handle_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
 	if (seat->pointer_focus && seat->pointer_focus->impl.input_pointer) {
 		// Hmm.. how does this behave if the pointer moves across two surfaces in the same frame?
 		seat->pointer_focus->impl.input_pointer(seat->pointer_focus, seat->pointer_event);
-		if (seat->pointer_event->changed & NWL_POINTER_EVENT_FOCUS && !seat->pointer_event->focus) {
-			seat->pointer_focus = NULL;
-		}
+	}
+	if (seat->pointer_event->changed & NWL_POINTER_EVENT_FOCUS && !seat->pointer_event->focus) {
+		seat->pointer_focus = NULL;
 	}
 	seat->pointer_event->changed = 0;
 	seat->pointer_event->axis_discrete_hori = 0;
@@ -584,6 +584,7 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 	wl_list_for_each(seat, &state->seats, link) {
 		if (seat->pointer_focus == surface) {
 			seat->pointer_focus = NULL;
+			seat->pointer_event->buttons = 0;
 		}
 		if (seat->keyboard_focus == surface) {
 			seat->keyboard_focus = NULL;
