@@ -49,15 +49,16 @@ static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, 
 	}
 }
 
-static void dispatch_keyboard_event(struct nwl_keyboard_event *event, struct nwl_surface *surface) {
+static void dispatch_keyboard_event(struct nwl_seat *seat) {
+	struct nwl_surface *surface = seat->keyboard_focus;
 	if (surface->impl.input_keyboard) {
-		surface->impl.input_keyboard(surface, event);
+		surface->impl.input_keyboard(surface, seat, seat->keyboard_event);
 	}
-	event->type = 0;
+	seat->keyboard_event->type = 0;
 }
 
-static void update_keyboard_event_compose(struct nwl_keyboard_event *event) {
-	struct nwl_seat *seat = event->seat;
+static void update_keyboard_event_compose(struct nwl_seat *seat) {
+	struct nwl_keyboard_event *event = seat->keyboard_event;
 	if (xkb_compose_state_feed(seat->keyboard_compose_state, event->keysym) == XKB_COMPOSE_FEED_ACCEPTED) {
 		char status = xkb_compose_state_get_status(seat->keyboard_compose_state);
 		switch (status) {
@@ -89,9 +90,9 @@ void nwl_seat_send_key_repeat(struct nwl_state *state, void *data) {
 		if (seat->keyboard_compose_enabled) {
 			// Getting the sym here so the repeats go through the proper compose process
 			seat->keyboard_event->keysym = xkb_state_key_get_one_sym(seat->keyboard_state, seat->keyboard_event->keycode);
-			update_keyboard_event_compose(seat->keyboard_event);
+			update_keyboard_event_compose(seat);
 		}
-		dispatch_keyboard_event(seat->keyboard_event, seat->keyboard_focus);
+		dispatch_keyboard_event(seat);
 	}
 }
 
@@ -106,9 +107,9 @@ static void handle_keyboard_enter(
 	struct nwl_seat *seat = (struct nwl_seat*)data;
 	seat->keyboard_focus = wl_surface_get_user_data(surface);
 	seat->keyboard_event->serial = serial;
-	seat->keyboard_event->focus = 1;
+	seat->keyboard_event->focus = true;
 	seat->keyboard_event->type = NWL_KEYBOARD_EVENT_FOCUS;
-	dispatch_keyboard_event(seat->keyboard_event, seat->keyboard_focus);
+	dispatch_keyboard_event(seat);
 	// TODO: held keys
 }
 
@@ -124,9 +125,9 @@ static void handle_keyboard_leave(
 		return;
 	}
 	seat->keyboard_event->serial = serial;
-	seat->keyboard_event->focus = 0;
+	seat->keyboard_event->focus = false;
 	seat->keyboard_event->type = NWL_KEYBOARD_EVENT_FOCUS;
-	dispatch_keyboard_event(seat->keyboard_event, seat->keyboard_focus);
+	dispatch_keyboard_event(seat);
 	seat->keyboard_focus = NULL;
 	struct itimerspec timer = { 0 };
 	timerfd_settime(seat->keyboard_repeat_fd, 0, &timer, NULL);
@@ -151,7 +152,7 @@ static void handle_keyboard_key(
 	if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		event->type = NWL_KEYBOARD_EVENT_KEYDOWN;
 		if (seat->keyboard_compose_state && seat->keyboard_compose_enabled) {
-			update_keyboard_event_compose(event);
+			update_keyboard_event_compose(seat);
 		} else {
 			event->compose_state = NWL_KEYBOARD_COMPOSE_NONE;
 		}
@@ -162,7 +163,7 @@ static void handle_keyboard_key(
 		event->type = NWL_KEYBOARD_EVENT_KEYUP;
 	}
 	event->serial = serial;
-	dispatch_keyboard_event(event, seat->keyboard_focus);
+	dispatch_keyboard_event(seat);
 	if (seat->keyboard_repeat_enabled) {
 		struct itimerspec timer = { 0 };
 		if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
@@ -287,7 +288,7 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 	seat->pointer_focus = nwlsurf;
 	seat->pointer_event->surface_x = surface_x;
 	seat->pointer_event->surface_y = surface_y;
-	seat->pointer_event->focus = 1;
+	seat->pointer_event->focus = true;
 	seat->pointer_event->serial = serial;
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_MOTION | NWL_POINTER_EVENT_FOCUS;
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
@@ -301,7 +302,7 @@ static void handle_pointer_leave(void *data, struct wl_pointer *pointer, uint32_
 	struct nwl_seat *seat = (struct nwl_seat*)data;
 	if (seat->pointer_focus) {
 		seat->pointer_event->serial = serial;
-		seat->pointer_event->focus = 0;
+		seat->pointer_event->focus = false;
 		seat->pointer_event->changed |= NWL_POINTER_EVENT_FOCUS;
 	}
 }
@@ -375,7 +376,7 @@ static void handle_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
 	UNUSED(wl_pointer);
 	if (seat->pointer_focus && seat->pointer_focus->impl.input_pointer) {
 		// Hmm.. how does this behave if the pointer moves across two surfaces in the same frame?
-		seat->pointer_focus->impl.input_pointer(seat->pointer_focus, seat->pointer_event);
+		seat->pointer_focus->impl.input_pointer(seat->pointer_focus, seat, seat->pointer_event);
 	}
 	if (seat->pointer_event->changed & NWL_POINTER_EVENT_FOCUS && !seat->pointer_event->focus) {
 		seat->pointer_focus = NULL;
@@ -542,7 +543,6 @@ static void handle_seat_capabilities(void *data, struct wl_seat *seat, uint32_t 
 			}
 			nwseat->keyboard_event = calloc(1, sizeof(struct nwl_keyboard_event));
 			nwseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-			nwseat->keyboard_event->seat = nwseat; // Why do events link to the seat like this anyway..
 			nwl_poll_add_fd(nwseat->state, nwseat->keyboard_repeat_fd, nwl_seat_send_key_repeat, nwseat);
 			wl_keyboard_add_listener(nwseat->keyboard, &keyboard_listener, data);
 		}
@@ -553,7 +553,6 @@ static void handle_seat_capabilities(void *data, struct wl_seat *seat, uint32_t 
 		if (!nwseat->pointer) {
 			nwseat->pointer = wl_seat_get_pointer(seat);
 			nwseat->pointer_event = calloc(1, sizeof(struct nwl_pointer_event));
-			nwseat->pointer_event->seat = nwseat;
 			wl_pointer_add_listener(nwseat->pointer, &pointer_listener, data);
 		}
 	} else if (nwseat->pointer) {

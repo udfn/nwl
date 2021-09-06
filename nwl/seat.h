@@ -67,7 +67,6 @@ enum nwl_pointer_axis {
 };
 
 struct nwl_pointer_event {
-	struct nwl_seat *seat;
 	char changed; // nwl_seat_pointer_event_changed
 	uint32_t serial;
 	wl_fixed_t surface_x;
@@ -79,7 +78,7 @@ struct nwl_pointer_event {
 	wl_fixed_t axis_vert;
 	char axis_source; // nwl_pointer_axis_source
 	char axis_stop; // nwl_pointer_axis
-	char focus;
+	bool focus;
 };
 
 enum nwl_keyboard_event_type {
@@ -97,10 +96,9 @@ enum nwl_keyboard_compose_state {
 };
 
 struct nwl_keyboard_event {
-	struct nwl_seat *seat;
 	char type; // nwl_keyboard_event_type
 	char compose_state; // nwl_keyboard_compose_state
-	char focus;
+	bool focus;
 	// If the compose state is composed then keysym and utf8 is the composed sym!
 	xkb_keysym_t keysym;
 	xkb_keycode_t keycode;
