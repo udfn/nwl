@@ -281,11 +281,6 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 		wl_list_remove(&surface->dirtlink);
 	}
 	wl_list_remove(&surface->link);
-	// destroy any possible subsurfaces as well
-	struct nwl_surface *subsurf, *subsurftmp;
-	wl_list_for_each_safe(subsurf, subsurftmp, &surface->subsurfaces, link) {
-		nwl_surface_destroy(subsurf);
-	}
 	if (surface->impl.destroy) {
 		surface->impl.destroy(surface);
 	}
@@ -314,6 +309,11 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL ||
 			surface->role_id == NWL_SURFACE_ROLE_LAYER) {
 		surface->state->num_surfaces--;
+	}
+	// And finally, destroy subsurfaces!
+	struct nwl_surface *subsurf, *subsurftmp;
+	wl_list_for_each_safe(subsurf, subsurftmp, &surface->subsurfaces, link) {
+		nwl_surface_destroy(subsurf);
 	}
 	free(surface);
 }
