@@ -80,11 +80,16 @@ static void update_keyboard_event_compose(struct nwl_seat *seat) {
 	}
 }
 
-void nwl_seat_send_key_repeat(struct nwl_state *state, void *data) {
+static void nwl_seat_send_key_repeat(struct nwl_state *state, void *data) {
 	UNUSED(state);
 	struct nwl_seat *seat = data;
 	uint64_t expirations;
 	read(seat->keyboard_repeat_fd, &expirations, sizeof(uint64_t));
+	if (!seat->keyboard_repeat_enabled) {
+		struct itimerspec timer = { 0 };
+		timerfd_settime(seat->keyboard_repeat_fd, 0, &timer, NULL);
+		return;
+	}
 	if (seat->keyboard_focus) {
 		seat->keyboard_event->type = NWL_KEYBOARD_EVENT_KEYREPEAT;
 		if (seat->keyboard_compose_enabled) {
@@ -593,7 +598,7 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 	}
 }
 
-void nwl_seat_destroy(void *data) {
+static void nwl_seat_destroy(void *data) {
 	struct nwl_seat *seat = data;
 	wl_list_remove(&seat->link);
 	if (seat->keyboard_keymap) {
@@ -612,7 +617,9 @@ void nwl_seat_destroy(void *data) {
 	if (seat->keyboard) {
 		seat_release_keyboard(seat);
 	}
-	free(seat->name);
+	if (seat->name) {
+		free(seat->name);
+	}
 	wl_seat_release(seat->wl_seat);
 	free(seat);
 }
