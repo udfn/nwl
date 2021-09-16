@@ -72,6 +72,7 @@ struct nwl_pointer_event {
 	wl_fixed_t surface_x;
 	wl_fixed_t surface_y;
 	char buttons; // nwl_pointer_buttons
+	char buttons_prev;
 	int32_t axis_discrete_vert;
 	int32_t axis_discrete_hori;
 	wl_fixed_t axis_hori;

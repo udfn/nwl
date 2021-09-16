@@ -387,6 +387,7 @@ static void handle_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
 	seat->pointer_event->axis_hori = 0;
 	seat->pointer_event->axis_vert = 0;
 	seat->pointer_event->axis_source = 0;
+	seat->pointer_event->buttons_prev = seat->pointer_event->buttons;
 }
 
 static char wl_axis_source_to_nwl(uint32_t axis_source) {
@@ -584,6 +585,7 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 		if (seat->pointer_focus == surface) {
 			seat->pointer_focus = NULL;
 			seat->pointer_event->buttons = 0;
+			seat->pointer_event->buttons_prev = 0;
 		}
 		if (seat->keyboard_focus == surface) {
 			seat->keyboard_focus = NULL;
