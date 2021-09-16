@@ -89,6 +89,12 @@ struct nwl_renderer {
 	void *data;
 };
 
+struct nwl_surface_output {
+	struct wl_list link;
+	// Should this be nwl_output instead?
+	struct wl_output *output;
+};
+
 struct nwl_surface {
 	struct wl_list link; // either linked to nwl_state, or another nwl_surface if subsurface
 	struct wl_list dirtlink; // link if dirty
@@ -115,7 +121,7 @@ struct nwl_surface {
 	uint32_t actual_width, actual_height;
 	int scale;
 	struct nwl_surface *parent; // if a subsurface
-	struct wl_list outputs; // nwl_surf_outputs
+	struct wl_list outputs; // nwl_surface_output
 	struct wl_list subsurfaces; // nwl_surface
 	enum nwl_surface_flags flags;
 	enum nwl_surface_states states;

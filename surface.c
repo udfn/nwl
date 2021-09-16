@@ -198,10 +198,6 @@ struct wl_callback_listener callback_listener = {
 	cb_done
 };
 
-struct nwl_surface_output {
-	struct wl_list link;
-	struct wl_output *output;
-};
 
 static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
 	int scale = 1;
