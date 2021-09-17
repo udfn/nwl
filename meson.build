@@ -17,12 +17,13 @@ xkbc = dependency('xkbcommon')
 subdir('protocol')
 subdir('nwl')
 nwl_src = [
-	'seat.c',
+	'cairo.c',
 	'egl.c',
+	'seat.c',
+	'shm.c',
 	'shell.c',
 	'surface.c',
 	'wayland.c',
-	'cairo.c',
 	wlprotos
 ]
 nwl_deps = [

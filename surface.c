@@ -15,55 +15,17 @@
 #include "viewporter.h"
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
+#include "nwl/shm.h"
 
 // Is in wayland.c
 void surface_mark_dirty(struct nwl_surface *surface);
-
-static void randname(char *buf) {
-	struct timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	long r = ts.tv_nsec;
-	for (int i = 0; i < 6; ++i) {
-		buf[i] = 'A'+(r&15)+(r&16)*2;
-		r >>= 5;
-	}
-}
-
-static int create_shm_file(void) {
-	int retries = 100;
-	do {
-		char name[] = "/nwl_shm-XXXXXX";
-		randname(name + sizeof(name) - 7);
-		--retries;
-		int fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
-		if (fd >= 0) {
-			shm_unlink(name);
-			return fd;
-		}
-	} while (retries > 0 && errno == EEXIST);
-	return -1;
-}
-
-static int allocate_shm_file(size_t size) {
-	int fd = create_shm_file();
-	if (fd < 0)
-		return -1;
-	int ret;
-	do {
-		ret = ftruncate(fd, size);
-	} while (ret < 0 && errno == EINTR);
-	if (ret < 0) {
-		close(fd);
-		return -1;
-	}
-	return fd;
-}
 
 static void destroy_shm_pool(struct nwl_surface_shm *shm) {
 	if (shm->fd) {
 		wl_shm_pool_destroy(shm->pool);
 		munmap(shm->data, shm->size);
 		close(shm->fd);
+		shm->fd = 0;
 	}
 }
 
@@ -74,10 +36,8 @@ static void allocate_wl_shm_pool(struct nwl_surface *surface) {
 	int stride = surface->renderer.impl->get_stride(WL_SHM_FORMAT_ARGB8888, scaled_width);
 	shm->stride = stride;
 	int pool_size = scaled_height * stride * 2;
-	if (shm->fd) {
-		destroy_shm_pool(shm);
-	}
-	int fd = allocate_shm_file(pool_size);
+	destroy_shm_pool(shm);
+	int fd = nwl_allocate_shm_file(pool_size);
 	shm->fd = fd;
 	shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	shm->pool = wl_shm_create_pool(surface->state->wl.shm, fd, pool_size);
