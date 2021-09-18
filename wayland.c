@@ -382,6 +382,33 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	nwl_poll_del_fd(state, wl_display_get_fd(state->wl.display));
 	nwl_poll_del_fd(state, state->poll->dirt_eventfd);
 	close(state->poll->dirt_eventfd);
+	if (state->wl.compositor) {
+		wl_compositor_destroy(state->wl.compositor);
+	}
+	if (state->wl.decoration) {
+		zxdg_decoration_manager_v1_destroy(state->wl.decoration);
+	}
+	if (state->wl.layer_shell) {
+		zwlr_layer_shell_v1_destroy(state->wl.layer_shell);
+	}
+	if (state->wl.registry) {
+		wl_registry_destroy(state->wl.registry);
+	}
+	if (state->wl.subcompositor) {
+		wl_subcompositor_destroy(state->wl.subcompositor);
+	}
+	if (state->wl.shm) {
+		wl_shm_destroy(state->wl.shm);
+	}
+	if (state->wl.viewporter) {
+		wp_viewporter_destroy(state->wl.viewporter);
+	}
+	if (state->wl.xdg_output_manager) {
+		zxdg_output_manager_v1_destroy(state->wl.xdg_output_manager);
+	}
+	if (state->wl.xdg_wm_base) {
+		xdg_wm_base_destroy(state->wl.xdg_wm_base);
+	}
 	wl_display_disconnect(state->wl.display);
 	free(state->poll->ev);
 	close(state->poll->epfd);
