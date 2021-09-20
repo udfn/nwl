@@ -95,7 +95,6 @@ void *nwl_state_get_sub(struct nwl_state *state, struct nwl_state_sub_impl *subi
 void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge trigger, etc?
 	nwl_poll_callback_t callback, void *data);
 void nwl_poll_del_fd(struct nwl_state *state, int fd);
-bool nwl_egl_try_init(struct nwl_state *state);
 void nwl_egl_uninit(struct nwl_state *state);
 
 #endif

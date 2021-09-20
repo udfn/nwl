@@ -7,7 +7,6 @@
 #include "seat.h"
 
 struct xdg_positioner;
-typedef void* EGLSurface;
 
 enum nwl_surface_flags {
 	NWL_SURFACE_FLAG_NO_AUTOSCALE = 1 << 0,
@@ -49,33 +48,9 @@ typedef void (*nwl_surface_input_keyboard_t)(struct nwl_surface *surface, struct
 
 typedef void (*nwl_surface_generic_func_t)(struct nwl_surface *surface);
 
-// Should probably be renamed to something like allocator?
-// This is confusing!
-enum nwl_surface_renderer {
-	NWL_SURFACE_RENDER_SHM,
-	NWL_SURFACE_RENDER_EGL,
-	// Maybe...
-	// NWL_SURFACE_RENDER_VK
-};
-
-struct nwl_surface_shm {
-	int fd;
-	uint8_t *data;
-	struct wl_shm_pool *pool;
-	size_t size;
-	int32_t stride;
-	char *name;
-	struct wl_buffer *buffer;
-};
-
-struct nwl_surface_egl {
-	struct wl_egl_window *window;
-	EGLSurface surface;
-};
-
 struct nwl_renderer_impl {
 	int (*get_stride)(enum wl_shm_format format, uint32_t width);
-	void (*surface_create)(struct nwl_surface *surface, enum nwl_surface_renderer renderer, uint32_t scaled_width, uint32_t scaled_height);
+	void (*surface_create)(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height);
 	void (*surface_set_size)(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height);
 	void (*surface_destroy)(struct nwl_surface *surface);
 	void (*swap_buffers)(struct nwl_surface *surface);
@@ -83,8 +58,19 @@ struct nwl_renderer_impl {
 	void (*destroy)(struct nwl_surface *surface);
 };
 
+struct nwl_render_backend_impl {
+	nwl_surface_generic_func_t swapbuffers;
+	nwl_surface_generic_func_t applysize;
+	nwl_surface_generic_func_t destroy;
+	nwl_surface_generic_func_t destroy_surface;
+};
+
+struct nwl_render_backend {
+	void *data;
+	struct nwl_render_backend_impl *impl;
+};
+
 // Cairo.. or whatever you want, really!
-// This should handle the EGL & SHM whatever stuff rather than the weird spaghetti it is now..
 struct nwl_renderer {
 	struct nwl_renderer_impl *impl;
 	void *data;
@@ -107,16 +93,8 @@ struct nwl_surface {
 		struct wp_viewport *viewport;
 		struct wl_callback *frame_cb;
 	} wl;
-	struct {
-		void *data;
-		struct {
-			nwl_surface_generic_func_t swapbuffers;
-			nwl_surface_generic_func_t applysize;
-			nwl_surface_generic_func_t destroy;
-			nwl_surface_generic_func_t destroy_surface;
-		} impl;
-	} render;
-	struct nwl_renderer renderer;
+	struct nwl_renderer render;
+	struct nwl_render_backend render_backend;
 	bool rendering;
 	bool needs_configure;
 	uint32_t width, height;
@@ -154,7 +132,7 @@ struct nwl_surface {
 	void *userdata;
 };
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state,char *title, enum nwl_surface_renderer renderer);
+struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title);
 void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
 bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height);

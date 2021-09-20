@@ -20,133 +20,11 @@
 // Is in wayland.c
 void surface_mark_dirty(struct nwl_surface *surface);
 
-static void destroy_shm_pool(struct nwl_surface_shm *shm) {
-	if (shm->fd) {
-		wl_shm_pool_destroy(shm->pool);
-		munmap(shm->data, shm->size);
-		close(shm->fd);
-		shm->fd = 0;
-	}
-}
-
-static void allocate_wl_shm_pool(struct nwl_surface *surface) {
-	struct nwl_surface_shm *shm = surface->render.data;
-	uint32_t scaled_width = surface->width * surface->scale;
-	uint32_t scaled_height = surface->height * surface->scale;
-	int stride = surface->renderer.impl->get_stride(WL_SHM_FORMAT_ARGB8888, scaled_width);
-	shm->stride = stride;
-	int pool_size = scaled_height * stride * 2;
-	destroy_shm_pool(shm);
-	int fd = nwl_allocate_shm_file(pool_size);
-	shm->fd = fd;
-	shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-	shm->pool = wl_shm_create_pool(surface->state->wl.shm, fd, pool_size);
-	surface->renderer.impl->surface_create(surface, NWL_SURFACE_RENDER_SHM, scaled_width, scaled_height);
-	return;
-}
-
-static void shm_surface_destroy(struct nwl_surface *surface) {
-	struct nwl_surface_shm *shm = surface->render.data;
-	if (surface->renderer.impl) {
-		surface->renderer.impl->destroy(surface);
-		destroy_shm_pool(shm);
-	}
-	if (shm->buffer) {
-		wl_buffer_destroy(shm->buffer);
-	}
-	free(surface->render.data);
-}
-
-static void shm_surface_swapbuffers(struct nwl_surface *surface) {
-	struct nwl_surface_shm *shm = surface->render.data;
-	if (shm->buffer) {
-		wl_buffer_destroy(shm->buffer);
-	}
-	uint32_t scaled_width = surface->width*surface->scale;
-	uint32_t scaled_height = surface->height*surface->scale;
-	shm->buffer = wl_shm_pool_create_buffer(shm->pool, 0, scaled_width, scaled_height, shm->stride, WL_SHM_FORMAT_ARGB8888);
-	wl_surface_attach(surface->wl.surface, shm->buffer, 0, 0);
-	wl_surface_commit(surface->wl.surface);
-}
-
-static void shm_surface_destroy_surface(struct nwl_surface *surface) {
-	surface->renderer.impl->surface_destroy(surface);
-}
-
-static void surface_render_set_shm(struct nwl_surface *surface) {
-	if (surface->render.data) {
-		surface->render.impl.destroy(surface);
-	}
-	surface->render.data = calloc(sizeof(struct nwl_surface_shm),1);
-	surface->render.impl.destroy = shm_surface_destroy;
-	surface->render.impl.applysize = allocate_wl_shm_pool;
-	surface->render.impl.swapbuffers = shm_surface_swapbuffers;
-	surface->render.impl.destroy_surface = shm_surface_destroy_surface;
-}
-
-static void egl_surface_destroy(struct nwl_surface *surface) {
-	struct nwl_surface_egl *egl = surface->render.data;
-	if (surface->renderer.impl) {
-		surface->renderer.impl->destroy(surface);
-		wl_egl_window_destroy(egl->window);
-		eglDestroySurface(surface->state->egl.display, egl->surface);
-	}
-	free(surface->render.data);
-}
-
-static void egl_surface_applysize(struct nwl_surface *surface) {
-	struct nwl_surface_egl *egl = surface->render.data;
-	uint32_t scaled_width = surface->width * surface->scale;
-	uint32_t scaled_height = surface->height * surface->scale;
-	if (!egl->window) {
-		egl->window = wl_egl_window_create(surface->wl.surface, scaled_width, scaled_height);
-		egl->surface = eglCreatePlatformWindowSurfaceEXT(surface->state->egl.display, surface->state->egl.config, egl->window, NULL);
-		surface->renderer.impl->surface_create(surface, NWL_SURFACE_RENDER_EGL, scaled_width, scaled_height);
-	} else {
-		wl_egl_window_resize(egl->window, scaled_width, scaled_height, 0, 0);
-		surface->renderer.impl->surface_set_size(surface, scaled_width, scaled_height);
-	}
-}
-
-static void egl_surface_swapbuffers(struct nwl_surface *surface) {
-	surface->renderer.impl->swap_buffers(surface);
-}
-
-static void egl_surface_destroy_surface(struct nwl_surface *surface) {
-	struct nwl_surface_egl *egl = surface->render.data;
-	surface->renderer.impl->surface_destroy(surface);
-	if (egl->window) {
-		wl_egl_window_destroy(egl->window);
-		eglDestroySurface(surface->state->egl.display, egl->surface);
-		egl->window = NULL;
-	}
-}
-
-static void surface_render_set_egl(struct nwl_surface *surface) {
-	if (surface->render.data) {
-		surface->render.impl.destroy(surface);
-	}
-	if (surface->state->egl.inited == 2) {
-		surface_render_set_shm(surface);
-		return;
-	} else if (surface->state->egl.inited == 0) {
-		if (!nwl_egl_try_init(surface->state)) {
-			surface_render_set_shm(surface);
-			return;
-		}
-	}
-	surface->render.data = calloc(sizeof(struct nwl_surface_egl), 1);
-	surface->render.impl.destroy = egl_surface_destroy;
-	surface->render.impl.applysize = egl_surface_applysize;
-	surface->render.impl.swapbuffers = egl_surface_swapbuffers;
-	surface->render.impl.destroy_surface = egl_surface_destroy_surface;
-}
-
 struct wl_callback_listener callback_listener;
 
 static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
 	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-	surface->render.impl.applysize(surface);
+	surface->render_backend.impl->applysize(surface);
 	wl_surface_set_buffer_scale(surface->wl.surface, surface->scale);
 }
 
@@ -156,7 +34,7 @@ void nwl_surface_render(struct nwl_surface *surface) {
 	if (surface->states & NWL_SURFACE_STATE_NEEDS_APPLY_SIZE) {
 		nwl_surface_real_apply_size(surface);
 	}
-	surface->renderer.impl->render(surface);
+	surface->render.impl->render(surface);
 	surface->rendering = false;
 }
 
@@ -221,7 +99,7 @@ static const struct wl_surface_listener surface_listener = {
 	handle_surface_leave
 };
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title, enum nwl_surface_renderer renderer) {
+struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title) {
 	struct nwl_surface *newsurf = calloc(1, sizeof(struct nwl_surface));
 	newsurf->state = state;
 	newsurf->wl.surface = wl_compositor_create_surface(state->wl.compositor);
@@ -233,11 +111,6 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title, enu
 	wl_list_insert(&state->surfaces, &newsurf->link);
 	wl_surface_set_user_data(newsurf->wl.surface, newsurf);
 	wl_surface_add_listener(newsurf->wl.surface, &surface_listener, newsurf);
-	if (renderer == NWL_SURFACE_RENDER_SHM) {
-		surface_render_set_shm(newsurf);
-	} else {
-		surface_render_set_egl(newsurf);
-	}
 	return newsurf;
 }
 
@@ -282,7 +155,7 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	if (surface->impl.destroy) {
 		surface->impl.destroy(surface);
 	}
-	surface->render.impl.destroy(surface);
+	surface->render.impl->destroy(surface);
 	struct nwl_surface_output *surfoutput, *surfoutputtmp;
 	wl_list_for_each_safe(surfoutput, surfoutputtmp, &surface->outputs, link) {
 		wl_list_remove(&surfoutput->link);
@@ -349,7 +222,7 @@ void nwl_surface_swapbuffers(struct nwl_surface *surface) {
 	scaled_width = surface->width*surface->scale;
 	scaled_height = surface->height*surface->scale;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
-	surface->render.impl.swapbuffers(surface);
+	surface->render_backend.impl->swapbuffers(surface);
 }
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
@@ -371,7 +244,7 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
-	surface->render.impl.destroy_surface(surface);
+	surface->render_backend.impl->destroy_surface(surface);
 }
 
 bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent) {
