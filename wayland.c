@@ -304,6 +304,7 @@ static bool handle_dirty_surfaces(struct nwl_state *state) {
 	}
 	return false;
 }
+
 static void nwl_wayland_handle_dirt(struct nwl_state *state, void *data) {
 	UNUSED(data);
 	// Yeah sure, errors might happen. Who cares?
@@ -355,6 +356,19 @@ char nwl_wayland_init(struct nwl_state *state) {
 	return 0;
 }
 
+static void poll_destroy(struct nwl_poll *poll) {
+	struct nwl_poll_data *data, *tmp;
+	wl_list_for_each_safe(data, tmp, &poll->data, link) {
+		free(data);
+	}
+	poll->numfds = 0;
+	if (poll->ev) {
+		free(poll->ev);
+	}
+	close(poll->epfd);
+	close(poll->dirt_eventfd);
+}
+
 void nwl_wayland_uninit(struct nwl_state *state) {
 	struct nwl_surface *surface, *surfacetmp;
 	wl_list_for_each_safe(surface, surfacetmp, &state->surfaces, link) {
@@ -379,9 +393,6 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	if (state->cursor_theme) {
 		wl_cursor_theme_destroy(state->cursor_theme);
 	}
-	nwl_poll_del_fd(state, wl_display_get_fd(state->wl.display));
-	nwl_poll_del_fd(state, state->poll->dirt_eventfd);
-	close(state->poll->dirt_eventfd);
 	if (state->wl.compositor) {
 		wl_compositor_destroy(state->wl.compositor);
 	}
@@ -410,8 +421,7 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 		xdg_wm_base_destroy(state->wl.xdg_wm_base);
 	}
 	wl_display_disconnect(state->wl.display);
-	free(state->poll->ev);
-	close(state->poll->epfd);
+	poll_destroy(state->poll);
 	free(state->poll);
 }
 
