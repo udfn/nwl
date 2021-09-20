@@ -15,6 +15,7 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 		surf->height = height;
 		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	}
+	surf->needs_configure = false;
 	nwl_surface_set_need_draw(surf, true);
 }
 
@@ -34,6 +35,7 @@ static void handle_surface_configure(void *data, struct xdg_surface *xdg_surface
 	xdg_surface_ack_configure(xdg_surface, serial);
 	// Ugly hack!
 	xdg_surface_set_window_geometry(xdg_surface, 0, 0, surf->width, surf->height);
+	surf->needs_configure = false;
 	nwl_surface_set_need_draw(surf, true);
 }
 
@@ -159,6 +161,7 @@ bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *
 	zwlr_layer_surface_v1_add_listener(surface->role.layer.wl, &layer_listener, surface);
 	surface->role_id = NWL_SURFACE_ROLE_LAYER;
 	surface->state->num_surfaces++;
+	surface->needs_configure = true;
 	return true;
 }
 
@@ -181,6 +184,7 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 	surface->role_id = NWL_SURFACE_ROLE_TOPLEVEL;
 	surface->states |= NWL_SURFACE_STATE_CSD;
 	surface->state->num_surfaces++;
+	surface->needs_configure = true;
 	return true;
 }
 
@@ -195,9 +199,10 @@ bool nwl_surface_role_popup(struct nwl_surface *surface, struct nwl_surface *par
 	if (parent && !xdg_parent) {
 		zwlr_layer_surface_v1_get_popup(parent->role.layer.wl, surface->role.popup.wl);
 	}
-	surface->role_id = NWL_SURFACE_ROLE_POPUP;
 	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
 	xdg_popup_add_listener(surface->role.popup.wl, &popup_listener, surface);
+	surface->role_id = NWL_SURFACE_ROLE_POPUP;
+	surface->needs_configure = true;
 	// Add to num_surfaces? How about to parent as a child?
 	// Nah, for now that will just have to be manually managed :)
 	return true;

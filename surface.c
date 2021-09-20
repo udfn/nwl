@@ -226,13 +226,40 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title, enu
 	return newsurf;
 }
 
-void nwl_surface_destroy(struct nwl_surface *surface) {
-	// clear any focuses
-	nwl_seat_clear_focus(surface);
-	// Probably not necessary but it doesn't hurt to be sure
+static void nwl_surface_destroy_role(struct nwl_surface *surface) {
+	if (!surface->role_id) {
+		return;
+	}
 	if (surface->wl.frame_cb) {
 		wl_callback_destroy(surface->wl.frame_cb);
 	}
+	if (surface->wl.xdg_surface) {
+		if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL) {
+			if (surface->wl.xdg_decoration) {
+				zxdg_toplevel_decoration_v1_destroy(surface->wl.xdg_decoration);
+				surface->wl.xdg_decoration = NULL;
+			}
+			xdg_toplevel_destroy(surface->role.toplevel.wl);
+		} else if (surface->role_id == NWL_SURFACE_ROLE_POPUP) {
+			xdg_popup_destroy(surface->role.popup.wl);
+		}
+		xdg_surface_destroy(surface->wl.xdg_surface);
+		surface->wl.xdg_surface = NULL;
+	} else if (surface->role_id == NWL_SURFACE_ROLE_LAYER) {
+		zwlr_layer_surface_v1_destroy(surface->role.layer.wl);
+	} else if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
+		wl_subsurface_destroy(surface->role.subsurface.wl);
+	}
+	if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL ||
+			surface->role_id == NWL_SURFACE_ROLE_LAYER) {
+		surface->state->num_surfaces--;
+	}
+	wl_surface_destroy(surface->wl.surface);
+}
+
+void nwl_surface_destroy(struct nwl_surface *surface) {
+	// clear any focuses
+	nwl_seat_clear_focus(surface);
 	if (!wl_list_empty(&surface->dirtlink)) {
 		wl_list_remove(&surface->dirtlink);
 	}
@@ -246,26 +273,7 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 		wl_list_remove(&surfoutput->link);
 		free(surfoutput);
 	}
-	if (surface->wl.xdg_surface) {
-		if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL) {
-			if (surface->wl.xdg_decoration) {
-				zxdg_toplevel_decoration_v1_destroy(surface->wl.xdg_decoration);
-			}
-			xdg_toplevel_destroy(surface->role.toplevel.wl);
-		} else if (surface->role_id == NWL_SURFACE_ROLE_POPUP) {
-			xdg_popup_destroy(surface->role.popup.wl);
-		}
-		xdg_surface_destroy(surface->wl.xdg_surface);
-	} else if (surface->role_id == NWL_SURFACE_ROLE_LAYER) {
-		zwlr_layer_surface_v1_destroy(surface->role.layer.wl);
-	} else if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
-		wl_subsurface_destroy(surface->role.subsurface.wl);
-	}
-	wl_surface_destroy(surface->wl.surface);
-	if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL ||
-			surface->role_id == NWL_SURFACE_ROLE_LAYER) {
-		surface->state->num_surfaces--;
-	}
+	nwl_surface_destroy_role(surface);
 	// And finally, destroy subsurfaces!
 	struct nwl_surface *subsurf, *subsurftmp;
 	wl_list_for_each_safe(subsurf, subsurftmp, &surface->subsurfaces, link) {
@@ -331,7 +339,7 @@ void nwl_surface_swapbuffers(struct nwl_surface *surface) {
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 	surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
-	if (surface->wl.frame_cb || surface->rendering) {
+	if (surface->wl.frame_cb || surface->rendering || surface->needs_configure) {
 		return;
 	}
 	if (render) {
@@ -339,6 +347,15 @@ void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 		return;
 	}
 	surface_mark_dirty(surface);
+}
+
+void nwl_surface_role_unset(struct nwl_surface *surface) {
+	nwl_surface_destroy_role(surface);
+	surface->wl.frame_cb = NULL;
+	surface->wl.surface = wl_compositor_create_surface(surface->state->wl.compositor);
+	wl_surface_set_user_data(surface->wl.surface, surface);
+	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
+	surface->role_id = 0;
 }
 
 bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent) {

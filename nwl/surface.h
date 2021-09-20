@@ -116,6 +116,7 @@ struct nwl_surface {
 	} render;
 	struct nwl_renderer renderer;
 	bool rendering;
+	bool needs_configure;
 	uint32_t width, height;
 	uint32_t desired_width, desired_height;
 	uint32_t actual_width, actual_height;
@@ -159,6 +160,7 @@ void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t 
 void nwl_surface_swapbuffers(struct nwl_surface *surface);
 void nwl_surface_render(struct nwl_surface *surface);
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool rendernow);
+void nwl_surface_role_unset(struct nwl_surface *surface);
 
 bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent);
 bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *output, uint32_t layer);
