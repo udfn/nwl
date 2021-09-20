@@ -138,6 +138,9 @@ static void nwl_surface_destroy_role(struct nwl_surface *surface) {
 	} else if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
 		wl_subsurface_destroy(surface->role.subsurface.wl);
 	}
+	if (surface->wl.viewport) {
+		wp_viewport_destroy(surface->wl.viewport);
+	}
 	if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL ||
 			surface->role_id == NWL_SURFACE_ROLE_LAYER) {
 		surface->state->num_surfaces--;
@@ -239,7 +242,7 @@ void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 
 void nwl_surface_role_unset(struct nwl_surface *surface) {
 	nwl_surface_destroy_role(surface);
-	surface->wl.frame_cb = NULL;
+	memset(&surface->wl, 0, sizeof(surface->wl));
 	surface->wl.surface = wl_compositor_create_surface(surface->state->wl.compositor);
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
