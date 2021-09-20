@@ -10,6 +10,7 @@ struct nwl_cairo_renderer_data {
 	cairo_surface_t *surface;
 	nwl_surface_cairo_render_t renderfunc;
 };
+
 struct nwl_cairo_state_data {
 	cairo_device_t *cairo_dev;
 };
@@ -50,10 +51,19 @@ static void nwl_cairo_create(struct nwl_surface *surface, enum nwl_surface_rende
 	}
 }
 
-static void nwl_cairo_destroy(struct nwl_surface *surface, enum nwl_surface_renderer renderer) {
-	UNUSED(renderer);
+static void nwl_cairo_surface_destroy(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->renderer.data;
-	cairo_surface_destroy(c->surface);
+	if (c->surface) {
+		cairo_surface_destroy(c->surface);
+	}
+	c->surface = NULL;
+}
+
+static void nwl_cairo_destroy(struct nwl_surface *surface) {
+	struct nwl_cairo_renderer_data *c = surface->renderer.data;
+	if (c->surface) {
+		cairo_surface_destroy(c->surface);
+	}
 	free(surface->renderer.data);
 }
 
@@ -77,15 +87,16 @@ static struct nwl_renderer_impl cairo_impl = {
 	nwl_cairo_get_stride,
 	nwl_cairo_create,
 	nwl_cairo_set_size,
-	nwl_cairo_destroy,
+	nwl_cairo_surface_destroy,
 	nwl_cairo_swap_buffers,
-	nwl_cairo_render
+	nwl_cairo_render,
+	nwl_cairo_destroy
 };
 
 void nwl_surface_renderer_cairo(struct nwl_surface *surface, nwl_surface_cairo_render_t renderfunc) {
 	// Should probably check for and destroy previous renderer..
 	surface->renderer.impl = &cairo_impl;
-	surface->renderer.data = calloc(1,sizeof(struct nwl_cairo_renderer_data));
+	surface->renderer.data = calloc(1, sizeof(struct nwl_cairo_renderer_data));
 	struct nwl_cairo_renderer_data *dat = surface->renderer.data;
 	dat->renderfunc = renderfunc;
 }

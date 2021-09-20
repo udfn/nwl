@@ -77,9 +77,10 @@ struct nwl_renderer_impl {
 	int (*get_stride)(enum wl_shm_format format, uint32_t width);
 	void (*surface_create)(struct nwl_surface *surface, enum nwl_surface_renderer renderer, uint32_t scaled_width, uint32_t scaled_height);
 	void (*surface_set_size)(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height);
-	void (*surface_destroy)(struct nwl_surface *surface, enum nwl_surface_renderer renderer);
+	void (*surface_destroy)(struct nwl_surface *surface);
 	void (*swap_buffers)(struct nwl_surface *surface);
 	nwl_surface_render_t render;
+	void (*destroy)(struct nwl_surface *surface);
 };
 
 // Cairo.. or whatever you want, really!
@@ -112,6 +113,7 @@ struct nwl_surface {
 			nwl_surface_generic_func_t swapbuffers;
 			nwl_surface_generic_func_t applysize;
 			nwl_surface_generic_func_t destroy;
+			nwl_surface_generic_func_t destroy_surface;
 		} impl;
 	} render;
 	struct nwl_renderer renderer;

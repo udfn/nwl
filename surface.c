@@ -48,7 +48,7 @@ static void allocate_wl_shm_pool(struct nwl_surface *surface) {
 static void shm_surface_destroy(struct nwl_surface *surface) {
 	struct nwl_surface_shm *shm = surface->render.data;
 	if (surface->renderer.impl) {
-		surface->renderer.impl->surface_destroy(surface, NWL_SURFACE_RENDER_SHM);
+		surface->renderer.impl->destroy(surface);
 		destroy_shm_pool(shm);
 	}
 	if (shm->buffer) {
@@ -65,8 +65,12 @@ static void shm_surface_swapbuffers(struct nwl_surface *surface) {
 	uint32_t scaled_width = surface->width*surface->scale;
 	uint32_t scaled_height = surface->height*surface->scale;
 	shm->buffer = wl_shm_pool_create_buffer(shm->pool, 0, scaled_width, scaled_height, shm->stride, WL_SHM_FORMAT_ARGB8888);
-	wl_surface_attach(surface->wl.surface, shm->buffer, 0,0);
+	wl_surface_attach(surface->wl.surface, shm->buffer, 0, 0);
 	wl_surface_commit(surface->wl.surface);
+}
+
+static void shm_surface_destroy_surface(struct nwl_surface *surface) {
+	surface->renderer.impl->surface_destroy(surface);
 }
 
 static void surface_render_set_shm(struct nwl_surface *surface) {
@@ -77,12 +81,13 @@ static void surface_render_set_shm(struct nwl_surface *surface) {
 	surface->render.impl.destroy = shm_surface_destroy;
 	surface->render.impl.applysize = allocate_wl_shm_pool;
 	surface->render.impl.swapbuffers = shm_surface_swapbuffers;
+	surface->render.impl.destroy_surface = shm_surface_destroy_surface;
 }
 
 static void egl_surface_destroy(struct nwl_surface *surface) {
 	struct nwl_surface_egl *egl = surface->render.data;
 	if (surface->renderer.impl) {
-		surface->renderer.impl->surface_destroy(surface, NWL_SURFACE_RENDER_EGL);
+		surface->renderer.impl->destroy(surface);
 		wl_egl_window_destroy(egl->window);
 		eglDestroySurface(surface->state->egl.display, egl->surface);
 	}
@@ -107,6 +112,16 @@ static void egl_surface_swapbuffers(struct nwl_surface *surface) {
 	surface->renderer.impl->swap_buffers(surface);
 }
 
+static void egl_surface_destroy_surface(struct nwl_surface *surface) {
+	struct nwl_surface_egl *egl = surface->render.data;
+	surface->renderer.impl->surface_destroy(surface);
+	if (egl->window) {
+		wl_egl_window_destroy(egl->window);
+		eglDestroySurface(surface->state->egl.display, egl->surface);
+		egl->window = NULL;
+	}
+}
+
 static void surface_render_set_egl(struct nwl_surface *surface) {
 	if (surface->render.data) {
 		surface->render.impl.destroy(surface);
@@ -124,6 +139,7 @@ static void surface_render_set_egl(struct nwl_surface *surface) {
 	surface->render.impl.destroy = egl_surface_destroy;
 	surface->render.impl.applysize = egl_surface_applysize;
 	surface->render.impl.swapbuffers = egl_surface_swapbuffers;
+	surface->render.impl.destroy_surface = egl_surface_destroy_surface;
 }
 
 struct wl_callback_listener callback_listener;
@@ -157,7 +173,6 @@ static void cb_done(void *data, struct wl_callback *cb, uint32_t cb_data) {
 struct wl_callback_listener callback_listener = {
 	cb_done
 };
-
 
 static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
 	int scale = 1;
@@ -356,6 +371,7 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
+	surface->render.impl.destroy_surface(surface);
 }
 
 bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent) {
