@@ -1,21 +1,13 @@
 #define _POSIX_C_SOURCE 200112L
-#include <wayland-client.h>
-#include <wayland-egl.h>
-#include <epoxy/egl.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <time.h>
+#include <wayland-client.h>
 #include "wlr-layer-shell-unstable-v1.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-shell.h"
 #include "viewporter.h"
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
-#include "nwl/shm.h"
 
 // Is in wayland.c
 void surface_mark_dirty(struct nwl_surface *surface);
