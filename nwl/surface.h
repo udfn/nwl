@@ -128,6 +128,7 @@ struct nwl_surface {
 		nwl_surface_input_pointer_t input_pointer;
 		nwl_surface_input_keyboard_t input_keyboard;
 		nwl_surface_configure_t configure;
+		void (*close)(struct nwl_surface *surface);
 	} impl;
 	void *userdata;
 };

@@ -98,6 +98,10 @@ static void handle_toplevel_configure(void *data, struct xdg_toplevel *xdg_tople
 static void handle_toplevel_close(void *data, struct xdg_toplevel *xdg_toplevel) {
 	UNUSED(xdg_toplevel);
 	struct nwl_surface *surf = data;
+	if (surf->impl.close) {
+		surf->impl.close(surf);
+		return;
+	}
 	nwl_surface_destroy_later(surf);
 }
 
