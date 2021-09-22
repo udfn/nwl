@@ -233,6 +233,11 @@ void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 }
 
 void nwl_surface_role_unset(struct nwl_surface *surface) {
+	if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
+		wl_list_remove(&surface->link);
+		wl_list_insert(&surface->state->surfaces, &surface->link);
+		surface->parent = NULL;
+	}
 	nwl_surface_destroy_role(surface);
 	memset(&surface->wl, 0, sizeof(surface->wl));
 	surface->wl.surface = wl_compositor_create_surface(surface->state->wl.compositor);
@@ -240,6 +245,12 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
 	surface->render_backend.impl->destroy_surface(surface);
+	// Should nwl remember subsurface state and restore it?
+	struct nwl_surface *sub;
+	wl_list_for_each(sub, &surface->subsurfaces, link) {
+		wl_subsurface_destroy(sub->role.subsurface.wl);
+		sub->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->state->wl.subcompositor, sub->wl.surface, surface->wl.surface);
+	}
 }
 
 bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface *parent) {
