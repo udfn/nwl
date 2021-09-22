@@ -296,11 +296,12 @@ static bool handle_dirty_surfaces(struct nwl_state *state) {
 				// Subsurfaces were destroyed.. Start over to be safe!
 				return true;
 			}
+			continue;
 		} else if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW && !surface->wl.frame_cb) {
 			nwl_surface_render(surface);
-			wl_list_remove(&surface->dirtlink);
-			wl_list_init(&surface->dirtlink); // To make sure it's not in an undefined state..
 		}
+		wl_list_remove(&surface->dirtlink);
+		wl_list_init(&surface->dirtlink); // To make sure it's not in an undefined state..
 	}
 	return false;
 }
