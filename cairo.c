@@ -51,7 +51,7 @@ static void nwl_cairo_create(struct nwl_surface *surface, uint32_t scaled_width,
 			nwl_state_add_sub(surface->state, &cairo_subimpl, statedata);
 		}
 		if (!statedata->cairo_dev) {
-			statedata->cairo_dev = cairo_egl_device_create(surface->state->egl.display, surface->state->egl.context);
+			statedata->cairo_dev = cairo_egl_device_create(egl->egl->display, egl->egl->context);
 		}
 		c->surface = cairo_gl_surface_create_for_egl(statedata->cairo_dev, egl->surface, scaled_width, scaled_height);
 	}

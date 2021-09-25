@@ -2,9 +2,7 @@
 #define _NWL_NWL_H
 #define UNUSED(x) (void)(x)
 #include <stdbool.h>
-#include <EGL/egl.h>
 #include <wayland-util.h>
-#include "seat.h"
 
 struct nwl_global {
 	struct wl_list link;
@@ -58,12 +56,6 @@ struct nwl_state {
 	struct wl_list globals; // nwl_global
 	struct wl_list subs; // nwl_state_sub
 	struct xkb_context *keyboard_context;
-	struct {
-		EGLDisplay display;
-		EGLConfig config;
-		EGLContext context;
-		char inited;
-	} egl;
 
 	struct wl_cursor_theme *cursor_theme;
 	uint32_t cursor_theme_size;
@@ -95,6 +87,5 @@ void *nwl_state_get_sub(struct nwl_state *state, struct nwl_state_sub_impl *subi
 void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge trigger, etc?
 	nwl_poll_callback_t callback, void *data);
 void nwl_poll_del_fd(struct nwl_state *state, int fd);
-void nwl_egl_uninit(struct nwl_state *state);
 
 #endif

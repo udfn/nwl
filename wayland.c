@@ -381,7 +381,6 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 		wl_list_remove(&sub->link);
 		free(sub);
 	}
-	nwl_egl_uninit(state);
 	if (state->keyboard_context) {
 		xkb_context_unref(state->keyboard_context);
 	}
