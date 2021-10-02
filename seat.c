@@ -13,6 +13,17 @@
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
 
+static const char *get_env_locale() {
+	const char *loc;
+	if ((loc = getenv("LC_ALL")) && *loc)
+		return loc;
+	if ((loc = getenv("LC_CTYPE")) && *loc)
+		return loc;
+	if ((loc = getenv("LANG")) && *loc)
+		return loc;
+	return "C";
+}
+
 static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, uint32_t format,
 		int32_t fd, uint32_t size) {
 	UNUSED(wl_keyboard);
@@ -43,7 +54,7 @@ static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, 
 	close(fd);
 
 	seat->keyboard_compose_table = xkb_compose_table_new_from_locale(seat->state->keyboard_context,
-		setlocale(LC_ALL, NULL), 0);
+		get_env_locale(), 0);
 	if (seat->keyboard_compose_table) {
 		seat->keyboard_compose_state = xkb_compose_state_new(seat->keyboard_compose_table, XKB_COMPOSE_STATE_NO_FLAGS);
 	}
