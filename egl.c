@@ -75,36 +75,16 @@ static bool nwl_egl_try_init(struct nwl_state *state, struct nwl_egl_data *egl) 
 	return true;
 }
 
-static void egl_surface_destroy(struct nwl_surface *surface) {
-	struct nwl_surface_egl *egl = surface->render_backend.data;
-	if (egl->window) {
-		wl_egl_window_destroy(egl->window);
-		eglDestroySurface(egl->egl->display, egl->surface);
-	}
-	free(surface->render_backend.data);
-}
-
-static void egl_surface_applysize(struct nwl_surface *surface) {
-	struct nwl_surface_egl *egl = surface->render_backend.data;
-	uint32_t scaled_width = surface->width * surface->scale;
-	uint32_t scaled_height = surface->height * surface->scale;
+void nwl_egl_surface_set_size(struct nwl_surface_egl *egl, struct nwl_surface *surface, uint32_t width, uint32_t height) {
 	if (!egl->window) {
-		egl->window = wl_egl_window_create(surface->wl.surface, scaled_width, scaled_height);
+		egl->window = wl_egl_window_create(surface->wl.surface, width, height);
 		egl->surface = eglCreatePlatformWindowSurfaceEXT(egl->egl->display, egl->egl->config, egl->window, NULL);
-		surface->render.impl->surface_create(surface, scaled_width, scaled_height);
 	} else {
-		wl_egl_window_resize(egl->window, scaled_width, scaled_height, 0, 0);
-		surface->render.impl->surface_set_size(surface, scaled_width, scaled_height);
+		wl_egl_window_resize(egl->window, width, height, 0, 0);
 	}
 }
 
-static void egl_surface_swapbuffers(struct nwl_surface *surface) {
-	surface->render.impl->swap_buffers(surface);
-}
-
-static void egl_surface_destroy_surface(struct nwl_surface *surface) {
-	struct nwl_surface_egl *egl = surface->render_backend.data;
-	surface->render.impl->surface_destroy(surface);
+static void egl_surface_destroy_surface(struct nwl_surface_egl *egl) {
 	if (egl->window) {
 		wl_egl_window_destroy(egl->window);
 		eglDestroySurface(egl->egl->display, egl->surface);
@@ -112,30 +92,25 @@ static void egl_surface_destroy_surface(struct nwl_surface *surface) {
 	}
 }
 
-static struct nwl_render_backend_impl egl_backend = {
-	egl_surface_swapbuffers,
-	egl_surface_applysize,
-	egl_surface_destroy,
-	egl_surface_destroy_surface
-};
+void nwl_surface_egl_destroy(struct nwl_surface_egl *egl) {
+	egl_surface_destroy_surface(egl);
+	free(egl);
+}
 
-bool nwl_surface_render_backend_egl(struct nwl_surface *surface) {
-	struct nwl_egl_data *egl = nwl_state_get_sub(surface->state, &egl_subimpl);
+struct nwl_surface_egl *nwl_egl_surface_create(struct nwl_state *state) {
+	struct nwl_egl_data *egl = nwl_state_get_sub(state, &egl_subimpl);
 	if (!egl) {
 		egl = calloc(1, sizeof(struct nwl_egl_data));
-		nwl_state_add_sub(surface->state, &egl_subimpl, egl);
+		nwl_state_add_sub(state, &egl_subimpl, egl);
 	}
 	if (egl->inited == 2) {
-		return false;
+		return NULL;
 	} else if (egl->inited == 0) {
-		if (!nwl_egl_try_init(surface->state, egl)) {
-			return false;
+		if (!nwl_egl_try_init(state, egl)) {
+			return NULL;
 		}
 	}
 	struct nwl_surface_egl *surface_egl = calloc(sizeof(struct nwl_surface_egl), 1);
 	surface_egl->egl = egl;
-	surface->render_backend.data = surface_egl;
-	surface->render_backend.impl = &egl_backend;
-	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-	return true;
+	return surface_egl;
 }

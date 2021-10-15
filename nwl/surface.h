@@ -40,7 +40,6 @@ enum nwl_surface_role {
 };
 
 struct nwl_surface;
-typedef void (*nwl_surface_render_t)(struct nwl_surface *surface);
 typedef void (*nwl_surface_destroy_t)(struct nwl_surface *surface);
 typedef void (*nwl_surface_configure_t)(struct nwl_surface *surface, uint32_t width, uint32_t height);
 typedef void (*nwl_surface_input_pointer_t)(struct nwl_surface *surface, struct nwl_seat *seat, struct nwl_pointer_event *event);
@@ -49,25 +48,11 @@ typedef void (*nwl_surface_input_keyboard_t)(struct nwl_surface *surface, struct
 typedef void (*nwl_surface_generic_func_t)(struct nwl_surface *surface);
 
 struct nwl_renderer_impl {
-	int (*get_stride)(enum wl_shm_format format, uint32_t width);
-	void (*surface_create)(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height);
-	void (*surface_set_size)(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height);
-	void (*surface_destroy)(struct nwl_surface *surface);
-	void (*swap_buffers)(struct nwl_surface *surface);
-	nwl_surface_render_t render;
-	void (*destroy)(struct nwl_surface *surface);
-};
-
-struct nwl_render_backend_impl {
-	nwl_surface_generic_func_t swapbuffers;
-	nwl_surface_generic_func_t applysize;
+	nwl_surface_generic_func_t apply_size;
+	nwl_surface_generic_func_t surface_destroy;
+	nwl_surface_generic_func_t swap_buffers;
+	nwl_surface_generic_func_t render;
 	nwl_surface_generic_func_t destroy;
-	nwl_surface_generic_func_t destroy_surface;
-};
-
-struct nwl_render_backend {
-	void *data;
-	struct nwl_render_backend_impl *impl;
 };
 
 // Cairo.. or whatever you want, really!
@@ -94,7 +79,6 @@ struct nwl_surface {
 		struct wl_callback *frame_cb;
 	} wl;
 	struct nwl_renderer render;
-	struct nwl_render_backend render_backend;
 	bool rendering;
 	bool needs_configure;
 	uint32_t width, height;

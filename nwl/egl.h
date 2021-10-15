@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <EGL/egl.h>
 
+struct nwl_state;
 struct nwl_surface;
 
 struct nwl_egl_data {
@@ -19,6 +20,8 @@ struct nwl_surface_egl {
 };
 
 // This needs improvement, e.g. ability to request specific API etc..
-bool nwl_surface_render_backend_egl(struct nwl_surface *surface);
+struct nwl_surface_egl *nwl_egl_surface_create(struct nwl_state *state);
+void nwl_egl_surface_set_size(struct nwl_surface_egl *egl, struct nwl_surface *surface, uint32_t width, uint32_t height);
+void nwl_surface_egl_destroy(struct nwl_surface_egl *egl);
 
 #endif

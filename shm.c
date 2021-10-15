@@ -50,7 +50,7 @@ int nwl_allocate_shm_file(size_t size) {
 }
 
 
-static void destroy_shm_pool(struct nwl_surface_shm *shm) {
+void nwl_shm_destroy_pool(struct nwl_surface_shm *shm) {
 	if (shm->fd) {
 		wl_shm_pool_destroy(shm->pool);
 		munmap(shm->data, shm->size);
@@ -59,61 +59,35 @@ static void destroy_shm_pool(struct nwl_surface_shm *shm) {
 	}
 }
 
-static void shm_applysize(struct nwl_surface *surface) {
-	struct nwl_surface_shm *shm = surface->render_backend.data;
-	uint32_t scaled_width = surface->width * surface->scale;
-	uint32_t scaled_height = surface->height * surface->scale;
-	int stride = surface->render.impl->get_stride(WL_SHM_FORMAT_ARGB8888, scaled_width);
-	shm->stride = stride;
-	size_t pool_size = scaled_height * stride * 2;
+void nwl_shm_set_size(struct nwl_surface_shm *shm, struct nwl_state *state, size_t pool_size) {
 	if (shm->size != pool_size) {
-		destroy_shm_pool(shm);
+		nwl_shm_destroy_pool(shm);
 		int fd = nwl_allocate_shm_file(pool_size);
 		shm->fd = fd;
 		shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-		shm->pool = wl_shm_create_pool(surface->state->wl.shm, fd, pool_size);
+		shm->pool = wl_shm_create_pool(state->wl.shm, fd, pool_size);
 		shm->size = pool_size;
 	}
-	surface->render.impl->surface_create(surface, scaled_width, scaled_height);
-	return;
 }
 
-static void shm_destroy(struct nwl_surface *surface) {
-	struct nwl_surface_shm *shm = surface->render_backend.data;
-	if (surface->render.impl) {
-		destroy_shm_pool(shm);
-	}
+struct wl_buffer *nwl_shm_get_buffer(struct nwl_surface_shm *shm, uint32_t width,
+		uint32_t height, uint32_t stride, uint32_t format) {
 	if (shm->buffer) {
 		wl_buffer_destroy(shm->buffer);
 	}
-	free(surface->render_backend.data);
+	shm->buffer = wl_shm_pool_create_buffer(shm->pool, 0, width, height, stride, format);
+	return shm->buffer;
 }
 
-static void shm_swapbuffers(struct nwl_surface *surface) {
-	struct nwl_surface_shm *shm = surface->render_backend.data;
+void nwl_shm_destroy(struct nwl_surface_shm *shm) {
+	nwl_shm_destroy_pool(shm);
 	if (shm->buffer) {
 		wl_buffer_destroy(shm->buffer);
 	}
-	uint32_t scaled_width = surface->width*surface->scale;
-	uint32_t scaled_height = surface->height*surface->scale;
-	shm->buffer = wl_shm_pool_create_buffer(shm->pool, 0, scaled_width, scaled_height, shm->stride, WL_SHM_FORMAT_ARGB8888);
-	wl_surface_attach(surface->wl.surface, shm->buffer, 0, 0);
-	wl_surface_commit(surface->wl.surface);
+	free(shm);
 }
 
-static void shm_destroy_surface(struct nwl_surface *surface) {
-	surface->render.impl->surface_destroy(surface);
-}
-
-static struct nwl_render_backend_impl shm_backend = {
-	shm_swapbuffers,
-	shm_applysize,
-	shm_destroy,
-	shm_destroy_surface
-};
-
-void nwl_surface_render_backend_shm(struct nwl_surface *surface) {
-	surface->render_backend.data = calloc(sizeof(struct nwl_surface_shm), 1);
-	surface->render_backend.impl = &shm_backend;
-	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+struct nwl_surface_shm *nwl_shm_create() {
+	// Why be like this?
+	return calloc(1, sizeof(struct nwl_surface_shm));
 }

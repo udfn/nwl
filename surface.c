@@ -16,7 +16,7 @@ struct wl_callback_listener callback_listener;
 
 static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
 	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-	surface->render_backend.impl->applysize(surface);
+	surface->render.impl->apply_size(surface);
 	wl_surface_set_buffer_scale(surface->wl.surface, surface->scale);
 }
 
@@ -217,7 +217,7 @@ void nwl_surface_swapbuffers(struct nwl_surface *surface) {
 	scaled_width = surface->width*surface->scale;
 	scaled_height = surface->height*surface->scale;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
-	surface->render_backend.impl->swapbuffers(surface);
+	surface->render.impl->swap_buffers(surface);
 }
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
@@ -244,7 +244,7 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
-	surface->render_backend.impl->destroy_surface(surface);
+	surface->render.impl->surface_destroy(surface);
 	if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW) {
 		surface->states = (surface->states & ~NWL_SURFACE_STATE_NEEDS_DRAW);
 	}

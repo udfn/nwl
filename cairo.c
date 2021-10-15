@@ -12,6 +12,11 @@ struct nwl_cairo_renderer_data {
 	cairo_surface_t *surface;
 	nwl_surface_cairo_render_t renderfunc;
 	bool shm;
+	uint32_t stride;
+	union {
+		struct nwl_surface_shm *shm;
+		struct nwl_surface_egl *egl;
+	} backend;
 };
 
 struct nwl_cairo_state_data {
@@ -30,30 +35,31 @@ static struct nwl_state_sub_impl cairo_subimpl = {
 	nwl_cairo_state_destroy
 };
 
-static void nwl_cairo_set_size(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height) {
+static void nwl_cairo_set_size(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
-	cairo_gl_surface_set_size(c->surface, scaled_width, scaled_height);
-}
-
-static void nwl_cairo_create(struct nwl_surface *surface, uint32_t scaled_width, uint32_t scaled_height) {
-	struct nwl_cairo_renderer_data *c = surface->render.data;
+	uint32_t scaled_width = surface->width * surface->scale;
+	uint32_t scaled_height = surface->height * surface->scale;
 	if (c->shm) {
-		struct nwl_surface_shm *shm = surface->render_backend.data;
 		if (c->surface) {
 			cairo_surface_destroy(c->surface);
 		}
-		c->surface = cairo_image_surface_create_for_data(shm->data, CAIRO_FORMAT_ARGB32, scaled_width, scaled_height, shm->stride);
+		c->stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, scaled_width);
+		nwl_shm_set_size(c->backend.shm, surface->state, (c->stride * scaled_height));
+		c->surface = cairo_image_surface_create_for_data(c->backend.shm->data, CAIRO_FORMAT_ARGB32, scaled_width, scaled_height, c->stride);
 	} else {
-		struct nwl_surface_egl *egl = surface->render_backend.data;
-		struct nwl_cairo_state_data *statedata = nwl_state_get_sub(surface->state, &cairo_subimpl);
-		if (!statedata) {
-			statedata = calloc(1, sizeof(struct nwl_cairo_state_data));
-			nwl_state_add_sub(surface->state, &cairo_subimpl, statedata);
+		nwl_egl_surface_set_size(c->backend.egl, surface, scaled_width, scaled_height);
+		if (!c->surface) {
+			struct nwl_cairo_state_data *statedata = nwl_state_get_sub(surface->state, &cairo_subimpl);
+			if (!statedata) {
+				statedata = calloc(1, sizeof(struct nwl_cairo_state_data));
+				nwl_state_add_sub(surface->state, &cairo_subimpl, statedata);
+			}
+			if (!statedata->cairo_dev) {
+				statedata->cairo_dev = cairo_egl_device_create(c->backend.egl->egl->display, c->backend.egl->egl->context);
+			}
+			c->surface = cairo_gl_surface_create_for_egl(statedata->cairo_dev, c->backend.egl->surface, scaled_width, scaled_height);
 		}
-		if (!statedata->cairo_dev) {
-			statedata->cairo_dev = cairo_egl_device_create(egl->egl->display, egl->egl->context);
-		}
-		c->surface = cairo_gl_surface_create_for_egl(statedata->cairo_dev, egl->surface, scaled_width, scaled_height);
+		cairo_gl_surface_set_size(c->surface, scaled_width, scaled_height);
 	}
 }
 
@@ -70,19 +76,26 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 	if (c->surface) {
 		cairo_surface_destroy(c->surface);
 	}
-	surface->render_backend.impl->destroy(surface);
+	if (c->shm) {
+		nwl_shm_destroy(c->backend.shm);
+	} else {
+		nwl_surface_egl_destroy(c->backend.egl);
+	}
 	free(surface->render.data);
 }
 
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface) {
-	cairo_gl_surface_swapbuffers(((struct nwl_cairo_renderer_data*)surface->render.data)->surface);
-}
-
-static int nwl_cairo_get_stride(enum wl_shm_format format, uint32_t width) {
-	if (format != WL_SHM_FORMAT_ARGB8888) {
-		fprintf(stderr, "wl_shm_format not ARGB8888!!");
+	struct nwl_cairo_renderer_data *c = surface->render.data;
+	if (c->shm) {
+		uint32_t scaled_width = surface->width * surface->scale;
+		uint32_t scaled_height = surface->height * surface->scale;
+		struct wl_buffer *buf = nwl_shm_get_buffer(c->backend.shm, scaled_width,
+				scaled_height, c->stride, WL_SHM_FORMAT_ARGB8888);
+		wl_surface_attach(surface->wl.surface, buf, 0, 0);
+		wl_surface_commit(surface->wl.surface);
+	} else {
+		cairo_gl_surface_swapbuffers(c->surface);
 	}
-	return cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
 }
 
 static void nwl_cairo_render(struct nwl_surface *surface) {
@@ -91,8 +104,6 @@ static void nwl_cairo_render(struct nwl_surface *surface) {
 }
 
 static struct nwl_renderer_impl cairo_impl = {
-	nwl_cairo_get_stride,
-	nwl_cairo_create,
 	nwl_cairo_set_size,
 	nwl_cairo_surface_destroy,
 	nwl_cairo_swap_buffers,
@@ -110,10 +121,13 @@ void nwl_surface_renderer_cairo(struct nwl_surface *surface, bool egl, nwl_surfa
 	dat->renderfunc = renderfunc;
 	dat->shm = !egl;
 	if (!dat->shm) {
-		if (nwl_surface_render_backend_egl(surface)) {
+		struct nwl_surface_egl *egl = nwl_egl_surface_create(surface->state);
+		if (egl) {
+			dat->backend.egl = egl;
 			return;
 		}
 	}
 	dat->shm = true;
-	nwl_surface_render_backend_shm(surface);
+	dat->backend.shm = nwl_shm_create();
+	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 }
