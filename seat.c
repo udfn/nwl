@@ -276,24 +276,35 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 		seat->pointer_cursor->images[0]->hotspot_y/surface->scale);
 }
 
+static inline void resize_surface_to_desired(struct nwl_surface *surface, int scale) {
+	if (surface->width != surface->desired_width ||
+			surface->height != surface->desired_height || scale != surface->scale) {
+		surface->width = surface->desired_width;
+		surface->height = surface->desired_height;
+		surface->scale = scale;
+		surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+	}
+}
+
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y) {
+	if (surface == NULL) {
+		// for consistency with nwl_seat_set_pointer_cursor
+		wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, NULL, 0, 0);
+		return true;
+	}
 	if (!seat->pointer_focus || (surface->role_id && surface->role_id != NWL_SURFACE_ROLE_CURSOR)) {
 		return false;
 	}
 	// Cursor surfaces can always be the desired size?
-	if (surface->width != surface->desired_width ||
-			surface->height != surface->desired_height || seat->pointer_focus->scale != surface->scale) {
-		surface->width = surface->desired_width;
-		surface->height = surface->desired_height;
-		surface->scale = seat->pointer_focus->scale;
-		surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-		nwl_surface_set_need_draw(surface, true);
-	}
+	resize_surface_to_desired(surface, seat->pointer_focus->scale);
 	if (!surface->role_id) {
 		surface->role_id = NWL_SURFACE_ROLE_CURSOR;
 		wl_surface_commit(surface->wl.surface);
 	}
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, surface->wl.surface, hotspot_x, hotspot_y);
+	if (surface) {
+		nwl_surface_set_need_draw(surface, true);
+	}
 	return true;
 }
 
@@ -594,6 +605,153 @@ static const struct wl_seat_listener seat_listener = {
 	handle_seat_name
 };
 
+static void handle_data_offer_offer(void *data, struct wl_data_offer *wl_data_offer, const char *mime_type) {
+	struct nwl_seat *seat = data;
+	if (seat->data_device.incoming.offer != wl_data_offer) {
+		return; // eek!
+	}
+	char **dest = wl_array_add(&seat->data_device.incoming.mime, sizeof(char*));
+	*dest = strdup(mime_type);
+}
+
+static void handle_data_offer_source_actions(void *data, struct wl_data_offer *wl_data_offer,
+		uint32_t source_actions) {
+	struct nwl_seat *seat = data;
+	if (wl_data_offer != seat->data_device.drop.offer) {
+		return;
+	}
+	seat->data_device.event.source_actions = source_actions;
+}
+
+static void handle_data_offer_action(void *data, struct wl_data_offer *wl_data_offer,
+		uint32_t dnd_action) {
+	struct nwl_seat *seat = data;
+	if (wl_data_offer != seat->data_device.drop.offer) {
+		return;
+	}
+	seat->data_device.event.action = dnd_action;
+}
+
+static const struct wl_data_offer_listener data_offer_listener = {
+	handle_data_offer_offer,
+	handle_data_offer_source_actions,
+	handle_data_offer_action
+};
+
+static void data_device_offer(void *data, struct wl_data_device *wl_data_device,
+		struct wl_data_offer *id) {
+	UNUSED(wl_data_device);
+	struct nwl_seat *seat = data;
+	if (seat->data_device.incoming.offer) {
+		// eek! Don't know whether the previous one is drop or selection!
+		return;
+	}
+	seat->data_device.incoming.offer = id;
+	wl_data_offer_add_listener(id, &data_offer_listener, seat);
+	wl_array_init(&seat->data_device.incoming.mime);
+}
+
+static inline void move_offer(struct nwl_data_offer *dest, struct nwl_data_offer *src) {
+	memcpy(dest, src, sizeof(struct nwl_data_offer));
+	memset(src, 0, sizeof(struct nwl_data_offer));
+}
+
+static inline void destroy_offer(struct nwl_data_offer *offer) {
+	char **mimetype;
+	wl_array_for_each(mimetype, &offer->mime) {
+		free(*mimetype);
+	}
+	wl_array_release(&offer->mime);
+	wl_data_offer_destroy(offer->offer);
+	offer->offer = 0;
+}
+
+static void data_device_enter(void *data, struct wl_data_device *wl_data_device,
+		uint32_t serial, struct wl_surface *surface, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer *id) {
+	UNUSED(wl_data_device);
+	struct nwl_seat *seat = data;
+	if (id) {
+		if (seat->data_device.incoming.offer != id) {
+			// eek! Don't know what happened here!
+			return;
+		}
+		if (seat->data_device.drop.offer) {
+			// Shouldn't happen!
+			destroy_offer(&seat->data_device.drop);
+		}
+		move_offer(&seat->data_device.drop, &seat->data_device.incoming);
+	}
+	struct nwl_surface *surf = wl_surface_get_user_data(surface);
+	if (surf->impl.dnd) {
+		seat->data_device.event.x = x;
+		seat->data_device.event.y = y;
+		seat->data_device.event.type = NWL_DND_EVENT_ENTER;
+		seat->data_device.event.serial = serial;
+		seat->data_device.event.focus_surface = surf;
+		surf->impl.dnd(surf, seat, &seat->data_device.event);
+	}
+}
+
+static void data_device_leave(void *data, struct wl_data_device *wl_data_device) {
+	UNUSED(wl_data_device);
+	struct nwl_seat *seat = data;
+	if (seat->data_device.event.focus_surface && seat->data_device.event.focus_surface->impl.dnd) {
+		seat->data_device.event.type = NWL_DND_EVENT_LEFT;
+		seat->data_device.event.focus_surface->impl.dnd(seat->data_device.event.focus_surface, seat,
+			&seat->data_device.event);
+	}
+	if (seat->data_device.drop.offer) {
+		destroy_offer(&seat->data_device.drop);
+	}
+}
+
+static void data_device_motion(void *data, struct wl_data_device *wl_data_device,
+		uint32_t time, wl_fixed_t x, wl_fixed_t y) {
+	UNUSED(wl_data_device);
+
+	struct nwl_seat *seat = data;
+	if (seat->data_device.event.focus_surface && seat->data_device.event.focus_surface->impl.dnd) {
+		seat->data_device.event.x = x;
+		seat->data_device.event.y = y;
+		seat->data_device.event.time = time;
+		seat->data_device.event.type = NWL_DND_EVENT_MOTION;
+		seat->data_device.event.focus_surface->impl.dnd(seat->data_device.event.focus_surface, seat,
+				&seat->data_device.event);
+	}
+}
+
+static void data_device_drop(void *data, struct wl_data_device *wl_data_device) {
+	UNUSED(wl_data_device);
+	struct nwl_seat *seat = data;
+	if (seat->data_device.event.focus_surface && seat->data_device.event.focus_surface->impl.dnd) {
+		seat->data_device.event.type = NWL_DND_EVENT_DROP;
+		seat->data_device.event.focus_surface->impl.dnd(seat->data_device.event.focus_surface, seat,
+				&seat->data_device.event);
+	}
+}
+
+static void data_device_selection(void *data, struct wl_data_device *wl_data_device, struct wl_data_offer *id) {
+	UNUSED(wl_data_device);
+	struct nwl_seat *seat = data;
+	if (id != seat->data_device.incoming.offer) {
+		// eek!
+		return;
+	}
+	if (seat->data_device.selection.offer) {
+		destroy_offer(&seat->data_device.selection);
+	}
+	move_offer(&seat->data_device.selection, &seat->data_device.incoming);
+}
+
+static const struct wl_data_device_listener data_device_listener = {
+	data_device_offer,
+	data_device_enter,
+	data_device_leave,
+	data_device_motion,
+	data_device_drop,
+	data_device_selection
+};
+
 void nwl_seat_clear_focus(struct nwl_surface *surface) {
 	struct nwl_seat *seat;
 	struct nwl_state *state = surface->state;
@@ -631,8 +789,25 @@ static void nwl_seat_destroy(void *data) {
 	if (seat->name) {
 		free(seat->name);
 	}
+	if (seat->data_device.wl) {
+		if (seat->data_device.drop.offer) {
+			destroy_offer(&seat->data_device.drop);
+		}
+		if (seat->data_device.incoming.offer) {
+			destroy_offer(&seat->data_device.incoming);
+		}
+		if (seat->data_device.selection.offer) {
+			destroy_offer(&seat->data_device.selection);
+		}
+		wl_data_device_release(seat->data_device.wl);
+	}
 	wl_seat_release(seat->wl_seat);
 	free(seat);
+}
+
+void nwl_seat_add_data_device(struct nwl_seat *seat) {
+	seat->data_device.wl = wl_data_device_manager_get_data_device(seat->state->wl.data_device_manager, seat->wl_seat);
+	wl_data_device_add_listener(seat->data_device.wl, &data_device_listener, seat);
 }
 
 void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t name) {
@@ -646,4 +821,31 @@ void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t n
 	glob->name = name;
 	glob->impl.destroy = nwl_seat_destroy;
 	wl_list_insert(&state->globals, &glob->link);
+	if (state->wl.data_device_manager) {
+		nwl_seat_add_data_device(nwlseat);
+	}
+}
+
+bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *wl_data_source, struct nwl_surface *icon) {
+	if (!seat->pointer_focus || !seat->data_device.wl) {
+		return false;
+	}
+	// Allow drag origin surface that's not current focus?
+	seat->pointer_event->buttons = 0;
+	// Also need to support touch drag..
+	if (icon) {
+		if (icon->role_id && icon->role_id != NWL_SURFACE_ROLE_DRAGICON) {
+			return false;
+		}
+		resize_surface_to_desired(icon, seat->pointer_focus->scale);
+		if (!icon->role_id) {
+			icon->role_id = NWL_SURFACE_ROLE_DRAGICON;
+		}
+	}
+	wl_data_device_start_drag(seat->data_device.wl, wl_data_source, seat->pointer_focus->wl.surface,
+			icon ? icon->wl.surface: NULL, seat->pointer_event->serial);
+	if (icon) {
+		nwl_surface_set_need_draw(icon, true);
+	}
+	return true;
 }

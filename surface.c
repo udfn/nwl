@@ -196,18 +196,25 @@ bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, 
 }
 
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height) {
-	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	surface->desired_height = height;
 	surface->desired_width = width;
-	if (surface->role_id == NWL_SURFACE_ROLE_LAYER) {
-		zwlr_layer_surface_v1_set_size(surface->role.layer.wl, width, height);
-	} else if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
-		surface->width = width;
-		surface->height = height;
+	switch (surface->role_id) {
+		case NWL_SURFACE_ROLE_LAYER:
+			zwlr_layer_surface_v1_set_size(surface->role.layer.wl, width, height);
+			return;
+		case NWL_SURFACE_ROLE_TOPLEVEL:
+		case NWL_SURFACE_ROLE_POPUP:
+		case NWL_SURFACE_ROLE_NONE:
+			return;
+		default:
+			surface->width = width;
+			surface->height = height;
+			surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+			return;
 	}
 }
 
-void nwl_surface_swapbuffers(struct nwl_surface *surface) {
+void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	surface->frame++;
 	if (!surface->wl.frame_cb) {
 		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
@@ -217,7 +224,7 @@ void nwl_surface_swapbuffers(struct nwl_surface *surface) {
 	scaled_width = surface->width*surface->scale;
 	scaled_height = surface->height*surface->scale;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
-	surface->render.impl->swap_buffers(surface);
+	surface->render.impl->swap_buffers(surface, x, y);
 }
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {

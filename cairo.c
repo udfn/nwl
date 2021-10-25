@@ -69,6 +69,8 @@ static void nwl_cairo_surface_destroy(struct nwl_surface *surface) {
 		cairo_surface_destroy(c->surface);
 	}
 	c->surface = NULL;
+	// Hack.. maybe it would be better to just get rid of surface_destroy?
+	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 }
 
 static void nwl_cairo_destroy(struct nwl_surface *surface) {
@@ -84,16 +86,17 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 	free(surface->render.data);
 }
 
-static void nwl_cairo_swap_buffers(struct nwl_surface *surface) {
+static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	if (c->shm) {
 		uint32_t scaled_width = surface->width * surface->scale;
 		uint32_t scaled_height = surface->height * surface->scale;
 		struct wl_buffer *buf = nwl_shm_get_buffer(c->backend.shm, scaled_width,
 				scaled_height, c->stride, WL_SHM_FORMAT_ARGB8888);
-		wl_surface_attach(surface->wl.surface, buf, 0, 0);
+		wl_surface_attach(surface->wl.surface, buf, x, y);
 		wl_surface_commit(surface->wl.surface);
 	} else {
+		// x y for egl surfaces how?
 		cairo_gl_surface_swapbuffers(c->surface);
 	}
 }
@@ -120,6 +123,7 @@ void nwl_surface_renderer_cairo(struct nwl_surface *surface, bool egl, nwl_surfa
 	struct nwl_cairo_renderer_data *dat = surface->render.data;
 	dat->renderfunc = renderfunc;
 	dat->shm = !egl;
+	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	if (!dat->shm) {
 		struct nwl_surface_egl *egl = nwl_egl_surface_create(surface->state);
 		if (egl) {
@@ -129,5 +133,4 @@ void nwl_surface_renderer_cairo(struct nwl_surface *surface, bool egl, nwl_surfa
 	}
 	dat->shm = true;
 	dat->backend.shm = nwl_shm_create();
-	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 }

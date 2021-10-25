@@ -8,10 +8,42 @@
 typedef uint32_t xkb_keysym_t;
 typedef uint32_t xkb_keycode_t;
 
+struct wl_data_source;
+
+struct nwl_data_offer {
+	struct wl_array mime;
+	struct wl_data_offer *offer;
+};
+
+enum nwl_dnd_event_type {
+	NWL_DND_EVENT_MOTION,
+	NWL_DND_EVENT_ENTER,
+	NWL_DND_EVENT_LEFT,
+	NWL_DND_EVENT_DROP,
+};
+
+struct nwl_dnd_event {
+	char type; // enum nwl_dnd_event_type
+	uint32_t serial;
+	struct nwl_surface *focus_surface;
+	wl_fixed_t x;
+	wl_fixed_t y;
+	uint32_t time;
+	uint32_t source_actions;
+	uint32_t action; // chosen by compositor
+};
+
 struct nwl_seat {
 	struct nwl_state *state;
 	struct wl_list link;
 	struct wl_seat *wl_seat;
+	struct {
+		struct wl_data_device *wl;
+		struct nwl_data_offer drop;
+		struct nwl_data_offer selection;
+		struct nwl_data_offer incoming; // before it says whether it's dnd or selection
+		struct nwl_dnd_event event;
+	} data_device;
 
 	struct wl_keyboard *keyboard;
 	struct xkb_keymap *keyboard_keymap;
@@ -113,5 +145,6 @@ void nwl_seat_clear_focus(struct nwl_surface *surface);
 void nwl_seat_get_pointer_cursor_metrics(struct nwl_seat *seat, int32_t *width, int32_t *height, int32_t *hotspot_x, int32_t *hotspot_y);
 void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor);
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y);
+bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *data_source, struct nwl_surface *icon);
 
 #endif

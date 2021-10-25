@@ -24,6 +24,9 @@ struct nwl_poll {
 	struct wl_list data; // nwl_poll_data
 };
 
+// in seat.c
+void nwl_seat_add_data_device(struct nwl_seat *seat);
+
 static void handle_wm_ping(void *data, struct xdg_wm_base *xdg_wm_base, uint32_t serial) {
 	UNUSED(data);
 	xdg_wm_base_pong(xdg_wm_base, serial);
@@ -214,6 +217,16 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version);
 	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
 		state->wl.xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version);
+	} else if (strcmp(interface, wl_data_device_manager_interface.name) == 0) {
+		state->wl.data_device_manager = nwl_registry_bind(reg, name, &wl_data_device_manager_interface, version);
+		// Maybe this global shows after seats?
+		struct nwl_seat *seat;
+		wl_list_for_each(seat, &state->seats, link) {
+			if (seat->data_device.wl) {
+				continue; // Will probably never happen, so why check?
+			}
+			nwl_seat_add_data_device(seat);
+		}
 	}
 }
 
@@ -419,6 +432,9 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	}
 	if (state->wl.xdg_wm_base) {
 		xdg_wm_base_destroy(state->wl.xdg_wm_base);
+	}
+	if (state->wl.data_device_manager) {
+		wl_data_device_manager_destroy(state->wl.data_device_manager);
 	}
 	wl_display_disconnect(state->wl.display);
 	poll_destroy(state->poll);

@@ -36,7 +36,8 @@ enum nwl_surface_role {
 	NWL_SURFACE_ROLE_POPUP,
 	NWL_SURFACE_ROLE_LAYER,
 	NWL_SURFACE_ROLE_SUB,
-	NWL_SURFACE_ROLE_CURSOR
+	NWL_SURFACE_ROLE_CURSOR,
+	NWL_SURFACE_ROLE_DRAGICON
 };
 
 struct nwl_surface;
@@ -50,7 +51,7 @@ typedef void (*nwl_surface_generic_func_t)(struct nwl_surface *surface);
 struct nwl_renderer_impl {
 	nwl_surface_generic_func_t apply_size;
 	nwl_surface_generic_func_t surface_destroy;
-	nwl_surface_generic_func_t swap_buffers;
+	void (*swap_buffers)(struct nwl_surface *surface, int32_t x, int32_t y);
 	nwl_surface_generic_func_t render;
 	nwl_surface_generic_func_t destroy;
 };
@@ -111,6 +112,7 @@ struct nwl_surface {
 		nwl_surface_destroy_t destroy;
 		nwl_surface_input_pointer_t input_pointer;
 		nwl_surface_input_keyboard_t input_keyboard;
+		void (*dnd)(struct nwl_surface *surface, struct nwl_seat *seat, struct nwl_dnd_event *event);
 		nwl_surface_configure_t configure;
 		void (*close)(struct nwl_surface *surface);
 	} impl;
@@ -122,7 +124,7 @@ void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
 bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height);
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height);
-void nwl_surface_swapbuffers(struct nwl_surface *surface);
+void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y);
 void nwl_surface_render(struct nwl_surface *surface);
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool rendernow);
 void nwl_surface_role_unset(struct nwl_surface *surface);

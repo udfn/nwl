@@ -48,6 +48,7 @@ struct nwl_state {
 		struct zxdg_decoration_manager_v1 *decoration;
 		struct wp_viewporter *viewporter;
 		struct wl_subcompositor *subcompositor;
+		struct wl_data_device_manager *data_device_manager;
 	} wl;
 	struct wl_list seats; // nwl_seat
 	struct wl_list outputs; // nwl_output
