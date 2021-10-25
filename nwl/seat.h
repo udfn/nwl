@@ -64,8 +64,13 @@ struct nwl_seat {
 
 	struct wl_pointer *pointer;
 	struct nwl_surface *pointer_focus;
-	struct wl_cursor *pointer_cursor;
-	struct wl_surface *pointer_surface;
+	struct {
+		struct wl_cursor *xcursor;
+		struct wl_surface *xcursor_surface;
+		struct nwl_surface *nwl;
+		int32_t hot_x;
+		int32_t hot_y;
+	} pointer_surface;
 	struct nwl_pointer_event *pointer_event;
 	char *name;
 };

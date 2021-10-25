@@ -226,21 +226,29 @@ static const struct wl_keyboard_listener keyboard_listener = {
 
 // Just a convenience function because reasons
 void nwl_seat_get_pointer_cursor_metrics(struct nwl_seat *seat, int32_t *width, int32_t *height, int32_t *hotspot_x, int32_t *hotspot_y) {
-	if (!seat->pointer_cursor) {
+	int32_t cursor_width;
+	int32_t cursor_height;
+	if (seat->pointer_surface.nwl) {
+		cursor_width = seat->pointer_surface.nwl->width;
+		cursor_height = seat->pointer_surface.nwl->height;
+	} else if (seat->pointer_surface.xcursor) {
+		int scale = seat->state->cursor_theme_size/24;
+		cursor_width = seat->pointer_surface.xcursor->images[0]->width/scale;
+		cursor_height = seat->pointer_surface.xcursor->images[0]->height/scale;
+	} else {
 		return;
 	}
-	int scale = seat->state->cursor_theme_size/24;
 	if (width) {
-		*width = seat->pointer_cursor->images[0]->width/scale;
+		*width = cursor_width;
 	}
 	if (height) {
-		*height = seat->pointer_cursor->images[0]->height/scale;
+		*height = cursor_height;
 	}
 	if (hotspot_x) {
-		*hotspot_x = seat->pointer_cursor->images[0]->hotspot_x/scale;
+		*hotspot_x = seat->pointer_surface.hot_x;
 	}
 	if (hotspot_y) {
-		*hotspot_y = seat->pointer_cursor->images[0]->hotspot_y/scale;
+		*hotspot_y = seat->pointer_surface.hot_y;
 	}
 }
 
@@ -255,8 +263,8 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 	if (!surface) {
 		return;
 	}
-	if (!seat->pointer_surface) {
-		seat->pointer_surface = wl_compositor_create_surface(seat->state->wl.compositor);
+	if (!seat->pointer_surface.xcursor) {
+		seat->pointer_surface.xcursor_surface = wl_compositor_create_surface(seat->state->wl.compositor);
 	}
 	if ((int)seat->state->cursor_theme_size != surface->scale*24) {
 		if (seat->state->cursor_theme) {
@@ -264,16 +272,19 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 		}
 		seat->state->cursor_theme = wl_cursor_theme_load(NULL, 24 * surface->scale, seat->state->wl.shm);
 		seat->state->cursor_theme_size = 24 * surface->scale;
-		wl_surface_set_buffer_scale(seat->pointer_surface, surface->scale);
+		wl_surface_set_buffer_scale(seat->pointer_surface.xcursor_surface, surface->scale);
 	}
-	seat->pointer_cursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
-	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(seat->pointer_cursor->images[0]);
-	wl_surface_attach(seat->pointer_surface, cursbuffer, 0, 0);
-	wl_surface_commit(seat->pointer_surface);
+	seat->pointer_surface.xcursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
+	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(seat->pointer_surface.xcursor->images[0]);
+	wl_surface_attach(seat->pointer_surface.xcursor_surface, cursbuffer, 0, 0);
+	wl_surface_commit(seat->pointer_surface.xcursor_surface);
+	seat->pointer_surface.nwl = NULL;
 	// Divide hotspot by scale, why? Because the compositor multiplies it by the scale!
-	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, seat->pointer_surface,
-		seat->pointer_cursor->images[0]->hotspot_x/surface->scale,
-		seat->pointer_cursor->images[0]->hotspot_y/surface->scale);
+	seat->pointer_surface.hot_x = seat->pointer_surface.xcursor->images[0]->hotspot_x/surface->scale;
+	seat->pointer_surface.hot_y = seat->pointer_surface.xcursor->images[0]->hotspot_y/surface->scale;
+	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, seat->pointer_surface.xcursor_surface,
+		seat->pointer_surface.hot_x,
+		seat->pointer_surface.hot_y);
 }
 
 static inline void resize_surface_to_desired(struct nwl_surface *surface, int scale) {
@@ -301,6 +312,9 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 		surface->role_id = NWL_SURFACE_ROLE_CURSOR;
 		wl_surface_commit(surface->wl.surface);
 	}
+	seat->pointer_surface.hot_x = hotspot_x;
+	seat->pointer_surface.hot_y = hotspot_y;
+	seat->pointer_surface.nwl = surface;
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, surface->wl.surface, hotspot_x, hotspot_y);
 	if (surface) {
 		nwl_surface_set_need_draw(surface, true);
@@ -554,9 +568,9 @@ static void seat_release_keyboard(struct nwl_seat *seat) {
 static void seat_release_pointer(struct nwl_seat *seat) {
 	free(seat->pointer_event);
 	wl_pointer_release(seat->pointer);
-	if (seat->pointer_surface) {
-		wl_surface_destroy(seat->pointer_surface);
-		seat->pointer_surface = NULL;
+	if (seat->pointer_surface.xcursor_surface) {
+		wl_surface_destroy(seat->pointer_surface.xcursor_surface);
+		seat->pointer_surface.xcursor_surface = NULL;
 	}
 	seat->pointer = NULL;
 }
