@@ -263,7 +263,7 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 	if (!surface) {
 		return;
 	}
-	if (!seat->pointer_surface.xcursor) {
+	if (!seat->pointer_surface.xcursor_surface) {
 		seat->pointer_surface.xcursor_surface = wl_compositor_create_surface(seat->state->wl.compositor);
 	}
 	if ((int)seat->state->cursor_theme_size != surface->scale*24) {
@@ -275,16 +275,19 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 		wl_surface_set_buffer_scale(seat->pointer_surface.xcursor_surface, surface->scale);
 	}
 	seat->pointer_surface.xcursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
+	if (!seat->pointer_surface.xcursor) {
+		return;
+	}
 	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(seat->pointer_surface.xcursor->images[0]);
 	wl_surface_attach(seat->pointer_surface.xcursor_surface, cursbuffer, 0, 0);
+	wl_surface_damage_buffer(seat->pointer_surface.xcursor_surface, 0, 0, INT32_MAX, INT32_MAX);
 	wl_surface_commit(seat->pointer_surface.xcursor_surface);
 	seat->pointer_surface.nwl = NULL;
 	// Divide hotspot by scale, why? Because the compositor multiplies it by the scale!
 	seat->pointer_surface.hot_x = seat->pointer_surface.xcursor->images[0]->hotspot_x/surface->scale;
 	seat->pointer_surface.hot_y = seat->pointer_surface.xcursor->images[0]->hotspot_y/surface->scale;
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, seat->pointer_surface.xcursor_surface,
-		seat->pointer_surface.hot_x,
-		seat->pointer_surface.hot_y);
+		seat->pointer_surface.hot_x, seat->pointer_surface.hot_y);
 }
 
 static inline void resize_surface_to_desired(struct nwl_surface *surface, int scale) {
