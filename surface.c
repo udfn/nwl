@@ -21,13 +21,11 @@ static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
 }
 
 void nwl_surface_render(struct nwl_surface *surface) {
-	surface->rendering = true;
 	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_DRAW;
 	if (surface->states & NWL_SURFACE_STATE_NEEDS_APPLY_SIZE) {
 		nwl_surface_real_apply_size(surface);
 	}
 	surface->render.impl->render(surface);
-	surface->rendering = false;
 }
 
 static void cb_done(void *data, struct wl_callback *cb, uint32_t cb_data) {
@@ -229,7 +227,7 @@ void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) 
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 	surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
-	if (surface->wl.frame_cb || surface->rendering || surface->needs_configure) {
+	if (surface->wl.frame_cb || surface->render.rendering || surface->needs_configure) {
 		return;
 	}
 	if (render) {

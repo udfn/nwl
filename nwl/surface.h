@@ -60,6 +60,7 @@ struct nwl_renderer_impl {
 struct nwl_renderer {
 	struct nwl_renderer_impl *impl;
 	void *data;
+	bool rendering;
 };
 
 struct nwl_surface_output {
@@ -80,7 +81,6 @@ struct nwl_surface {
 		struct wl_callback *frame_cb;
 	} wl;
 	struct nwl_renderer render;
-	bool rendering;
 	bool needs_configure;
 	uint32_t width, height;
 	uint32_t desired_width, desired_height;

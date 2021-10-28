@@ -103,7 +103,9 @@ static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32
 
 static void nwl_cairo_render(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
+	surface->render.rendering = true;
 	c->renderfunc(surface, c->surface);
+	surface->render.rendering = false;
 }
 
 static struct nwl_renderer_impl cairo_impl = {
