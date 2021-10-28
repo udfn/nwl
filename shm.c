@@ -49,8 +49,7 @@ int nwl_allocate_shm_file(size_t size) {
 	return fd;
 }
 
-
-void nwl_shm_destroy_pool(struct nwl_surface_shm *shm) {
+void nwl_shm_destroy_pool(struct nwl_shm_pool *shm) {
 	if (shm->fd) {
 		wl_shm_pool_destroy(shm->pool);
 		munmap(shm->data, shm->size);
@@ -59,35 +58,99 @@ void nwl_shm_destroy_pool(struct nwl_surface_shm *shm) {
 	}
 }
 
-void nwl_shm_set_size(struct nwl_surface_shm *shm, struct nwl_state *state, size_t pool_size) {
+void nwl_shm_set_size(struct nwl_shm_pool *shm, struct nwl_state *state, size_t pool_size) {
 	if (shm->size != pool_size) {
-		nwl_shm_destroy_pool(shm);
-		int fd = nwl_allocate_shm_file(pool_size);
-		shm->fd = fd;
-		shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-		shm->pool = wl_shm_create_pool(state->wl.shm, fd, pool_size);
+		if (!shm->fd) {
+			shm->fd = nwl_allocate_shm_file(pool_size);
+		} else {
+			wl_shm_pool_destroy(shm->pool);
+			munmap(shm->data, shm->size);
+			ftruncate(shm->fd, pool_size);
+		}
+		shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, shm->fd, 0);
+		shm->pool = wl_shm_create_pool(state->wl.shm, shm->fd, pool_size);
 		shm->size = pool_size;
 	}
 }
 
-struct wl_buffer *nwl_shm_get_buffer(struct nwl_surface_shm *shm, uint32_t width,
-		uint32_t height, uint32_t stride, uint32_t format) {
-	if (shm->buffer) {
-		wl_buffer_destroy(shm->buffer);
-	}
-	shm->buffer = wl_shm_pool_create_buffer(shm->pool, 0, width, height, stride, format);
-	return shm->buffer;
+static void handle_buffer_release(void *data, struct wl_buffer *buffer) {
+	(void)(buffer); // unused!
+	struct nwl_shm_buffer *nwlbuf = data;
+	nwlbuf->flags = (nwlbuf->flags & ~NWL_SHM_BUFFER_ACQUIRED);
 }
 
-void nwl_shm_destroy(struct nwl_surface_shm *shm) {
-	nwl_shm_destroy_pool(shm);
-	if (shm->buffer) {
-		wl_buffer_destroy(shm->buffer);
+static const struct wl_buffer_listener buffer_listener = {
+	handle_buffer_release
+};
+
+static struct nwl_shm_buffer *try_check_buffer(struct nwl_shm_bufferman *bm, struct nwl_shm_buffer *buf, int32_t offset) {
+	if (buf->wl_buffer) {
+		if (buf->flags & NWL_SHM_BUFFER_ACQUIRED) {
+			return NULL;
+		}
+		if (buf->flags & NWL_SHM_BUFFER_DESTROY) {
+			bm->impl->buffer_destroy(buf, bm);
+			wl_buffer_destroy(buf->wl_buffer);
+			buf->flags = 0;
+		} else {
+			return buf;
+		}
 	}
+	buf->wl_buffer = wl_shm_pool_create_buffer(bm->pool.pool, offset, bm->width, bm->height, bm->stride, bm->format);
+	buf->bufferdata = bm->pool.data+offset; // Ugh..
+	wl_buffer_add_listener(buf->wl_buffer, &buffer_listener, buf);
+	bm->impl->buffer_create(buf, bm);
+	return buf;
+}
+
+struct nwl_shm_buffer *nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman) {
+	struct nwl_shm_buffer *buf = try_check_buffer(bufferman, &bufferman->buffers[0], 0);
+	if (!buf) {
+		buf = try_check_buffer(bufferman, &bufferman->buffers[1], bufferman->stride * bufferman->height);
+	}
+	return buf;
+}
+
+void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct nwl_state *state,
+	uint32_t width, uint32_t height, uint32_t stride, uint32_t format) {
+	size_t new_min_pool_size = (stride * height)*2;
+	if (new_min_pool_size > bm->pool.size || (int)new_min_pool_size < (int)bm->pool.size-(512*1024)) {
+		// Add some extra so if the surface grows slightly the pool can be reused
+		nwl_shm_set_size(&bm->pool, state, new_min_pool_size+stride*30);
+	}
+	bm->width = width;
+	bm->height = height;
+	bm->stride = stride;
+	bm->format = format;
+	bm->buffers[0].flags |= NWL_SHM_BUFFER_DESTROY;
+	bm->buffers[1].flags |= NWL_SHM_BUFFER_DESTROY;
+}
+
+void nwl_shm_destroy(struct nwl_shm_pool *shm) {
+	nwl_shm_destroy_pool(shm);
 	free(shm);
 }
 
-struct nwl_surface_shm *nwl_shm_create() {
+struct nwl_shm_pool *nwl_shm_create() {
 	// Why be like this?
-	return calloc(1, sizeof(struct nwl_surface_shm));
+	return calloc(1, sizeof(struct nwl_shm_pool));
+}
+
+struct nwl_shm_bufferman *nwl_shm_bufferman_create() {
+	// Why be like this?
+	return calloc(1, sizeof(struct nwl_shm_bufferman));
+}
+
+static void destroy_buffer(struct nwl_shm_buffer *buf, struct nwl_shm_bufferman *bufferman) {
+	if (buf->wl_buffer) {
+		bufferman->impl->buffer_destroy(buf, bufferman);
+		wl_buffer_destroy(buf->wl_buffer);
+	}
+}
+
+void nwl_shm_bufferman_destroy(struct nwl_shm_bufferman *bufferman) {
+	nwl_shm_destroy_pool(&bufferman->pool);
+	destroy_buffer(&bufferman->buffers[0], bufferman);
+	destroy_buffer(&bufferman->buffers[1], bufferman);
+	free(bufferman);
 }
