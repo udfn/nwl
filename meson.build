@@ -2,7 +2,7 @@ project('nwl', 'c',
 	default_options: [
 		'c_std=c11'
 	],
-	version: '0.3 do-not-use'
+	version: '0.4 do-not-use'
 )
 cc = meson.get_compiler('c')
 wayland_client = dependency('wayland-client')
