@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
 #include <string.h>
 #include <wayland-client.h>
@@ -89,12 +89,14 @@ static const struct wl_surface_listener surface_listener = {
 	handle_surface_leave
 };
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title) {
+struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title) {
 	struct nwl_surface *newsurf = calloc(1, sizeof(struct nwl_surface));
 	newsurf->state = state;
 	newsurf->wl.surface = wl_compositor_create_surface(state->wl.compositor);
 	newsurf->scale = 1;
-	newsurf->title = title;
+	if (title) {
+		newsurf->title = strdup(title);
+	}
 	wl_list_init(&newsurf->subsurfaces);
 	wl_list_init(&newsurf->outputs);
 	wl_list_init(&newsurf->dirtlink);
@@ -159,6 +161,9 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	struct nwl_surface *subsurf, *subsurftmp;
 	wl_list_for_each_safe(subsurf, subsurftmp, &surface->subsurfaces, link) {
 		nwl_surface_destroy(subsurf);
+	}
+	if (surface->title) {
+		free(surface->title);
 	}
 	free(surface);
 }

@@ -119,7 +119,7 @@ struct nwl_surface {
 	void *userdata;
 };
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state, char *title);
+struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title);
 void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
 bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height);

@@ -175,7 +175,9 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 	surface->role.toplevel.wl = xdg_surface_get_toplevel(surface->wl.xdg_surface);
 	xdg_toplevel_add_listener(surface->role.toplevel.wl, &toplevel_listener, surface);
 	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
-	xdg_toplevel_set_title(surface->role.toplevel.wl, surface->title);
+	if (surface->title) {
+		xdg_toplevel_set_title(surface->role.toplevel.wl, surface->title);
+	}
 	if (surface->state->wl.decoration) {
 		surface->wl.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->wl.decoration, surface->role.toplevel.wl);
 		zxdg_toplevel_decoration_v1_add_listener(surface->wl.xdg_decoration, &decoration_listener, surface);
