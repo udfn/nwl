@@ -146,9 +146,9 @@ void nwl_surface_renderer_cairo(struct nwl_surface *surface, bool egl, nwl_surfa
 	dat->shm = !egl;
 	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	if (!dat->shm) {
-		struct nwl_surface_egl *egl = nwl_egl_surface_create(surface->state);
-		if (egl) {
-			dat->backend.egl = egl;
+		struct nwl_surface_egl *egl_surface = nwl_egl_surface_create(surface->state);
+		if (egl_surface) {
+			dat->backend.egl = egl_surface;
 			return;
 		}
 	}
