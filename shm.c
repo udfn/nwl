@@ -91,12 +91,12 @@ static struct nwl_shm_buffer *try_check_buffer(struct nwl_shm_bufferman *bm, str
 		if (buf->flags & NWL_SHM_BUFFER_DESTROY) {
 			bm->impl->buffer_destroy(buf, bm);
 			wl_buffer_destroy(buf->wl_buffer);
-			buf->flags = 0;
 		} else {
 			return buf;
 		}
 	}
 	buf->wl_buffer = wl_shm_pool_create_buffer(bm->pool.pool, offset, bm->width, bm->height, bm->stride, bm->format);
+	buf->flags = 0;
 	buf->bufferdata = bm->pool.data+offset; // Ugh..
 	wl_buffer_add_listener(buf->wl_buffer, &buffer_listener, buf);
 	bm->impl->buffer_create(buf, bm);
