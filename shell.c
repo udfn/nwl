@@ -5,9 +5,9 @@
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
 
-static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *layer, uint32_t serial, uint32_t width, uint32_t height ) {
+static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *layer, uint32_t serial, uint32_t width, uint32_t height) {
+	UNUSED(layer);
 	struct nwl_surface *surf = (struct nwl_surface*)data;
-	zwlr_layer_surface_v1_ack_configure(layer, serial);
 	if (surf->impl.configure) {
 		surf->impl.configure(surf, width, height);
 	} else if (surf->width != width || surf->height != height) {
@@ -15,7 +15,8 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 		surf->height = height;
 		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	}
-	surf->needs_configure = false;
+	surf->configure_serial = serial;
+	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	nwl_surface_set_need_draw(surf, true);
 }
 
@@ -32,8 +33,9 @@ static const struct zwlr_layer_surface_v1_listener layer_listener = {
 
 static void handle_surface_configure(void *data, struct xdg_surface *xdg_surface, uint32_t serial) {
 	struct nwl_surface *surf = data;
-	xdg_surface_ack_configure(xdg_surface, serial);
-	surf->needs_configure = false;
+	UNUSED(xdg_surface);
+	surf->configure_serial = serial;
+	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	nwl_surface_set_need_draw(surf, true);
 }
 
@@ -163,7 +165,7 @@ bool nwl_surface_role_layershell(struct nwl_surface *surface, struct wl_output *
 	zwlr_layer_surface_v1_add_listener(surface->role.layer.wl, &layer_listener, surface);
 	surface->role_id = NWL_SURFACE_ROLE_LAYER;
 	surface->state->num_surfaces++;
-	surface->needs_configure = true;
+	surface->states |= NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	return true;
 }
 
@@ -188,7 +190,7 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 	surface->role_id = NWL_SURFACE_ROLE_TOPLEVEL;
 	surface->states |= NWL_SURFACE_STATE_CSD;
 	surface->state->num_surfaces++;
-	surface->needs_configure = true;
+	surface->states |= NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	return true;
 }
 
@@ -206,7 +208,7 @@ bool nwl_surface_role_popup(struct nwl_surface *surface, struct nwl_surface *par
 	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
 	xdg_popup_add_listener(surface->role.popup.wl, &popup_listener, surface);
 	surface->role_id = NWL_SURFACE_ROLE_POPUP;
-	surface->needs_configure = true;
+	surface->states |= NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	// Add to num_surfaces? How about to parent as a child?
 	// Nah, for now that will just have to be manually managed :)
 	return true;

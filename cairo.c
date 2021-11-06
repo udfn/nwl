@@ -57,6 +57,8 @@ static void nwl_cairo_set_size(struct nwl_surface *surface) {
 		}
 		cairo_gl_surface_set_size(c->egl_surface, scaled_width, scaled_height);
 	}
+	surface->current_width = scaled_width;
+	surface->current_height = scaled_height;
 }
 
 static void nwl_cairo_surface_destroy(struct nwl_surface *surface) {
@@ -84,11 +86,7 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
-	uint32_t scaled_width, scaled_height;
-	scaled_width = surface->width*surface->scale;
-	scaled_height = surface->height*surface->scale;
-	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
-
+	wl_surface_damage_buffer(surface->wl.surface, 0, 0, surface->current_width, surface->current_height);
 	if (c->shm) {
 		if (c->next_buffer) {
 			wl_surface_attach(surface->wl.surface, c->next_buffer->wl_buffer, x, y);

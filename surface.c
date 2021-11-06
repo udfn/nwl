@@ -188,13 +188,6 @@ bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, 
 		surface->wl.viewport = wp_viewporter_get_viewport(surface->state->wl.viewporter, surface->wl.surface);
 	}
 	wp_viewport_set_destination(surface->wl.viewport, width, height);
-	if (width == -1 && height == -1) {
-		surface->actual_height = surface->height;
-		surface->actual_width = surface->width;
-	} else {
-		surface->actual_height = height;
-		surface->actual_width = width;
-	}
 	return true;
 }
 
@@ -217,18 +210,34 @@ void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t 
 	}
 }
 
+static void nwl_surface_ack_configure(struct nwl_surface *surface) {
+	switch (surface->role_id) {
+		case NWL_SURFACE_ROLE_LAYER:
+			zwlr_layer_surface_v1_ack_configure(surface->role.layer.wl, surface->configure_serial);
+			break;
+		case NWL_SURFACE_ROLE_TOPLEVEL:
+		case NWL_SURFACE_ROLE_POPUP:
+			xdg_surface_ack_configure(surface->wl.xdg_surface, surface->configure_serial);
+			break;
+	}
+	surface->configure_serial = 0;
+}
+
 void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	surface->frame++;
 	if (!surface->wl.frame_cb) {
 		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
 		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
 	}
+	if (surface->configure_serial) {
+		nwl_surface_ack_configure(surface);
+	}
 	surface->render.impl->swap_buffers(surface, x, y);
 }
 
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
 	surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
-	if (surface->wl.frame_cb || surface->render.rendering || surface->needs_configure) {
+	if (surface->wl.frame_cb || surface->render.rendering || surface->states & NWL_SURFACE_STATE_NEEDS_CONFIGURE) {
 		return;
 	}
 	if (render) {

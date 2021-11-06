@@ -28,6 +28,7 @@ enum nwl_surface_states {
 	NWL_SURFACE_STATE_NEEDS_DRAW = 1 << 9,
 	NWL_SURFACE_STATE_NEEDS_APPLY_SIZE = 1 << 10,
 	NWL_SURFACE_STATE_DESTROY = 1 << 11,
+	NWL_SURFACE_STATE_NEEDS_CONFIGURE = 1 << 12
 };
 
 enum nwl_surface_role {
@@ -81,10 +82,10 @@ struct nwl_surface {
 		struct wl_callback *frame_cb;
 	} wl;
 	struct nwl_renderer render;
-	bool needs_configure;
 	uint32_t width, height;
 	uint32_t desired_width, desired_height;
-	uint32_t actual_width, actual_height;
+	uint32_t current_width, current_height; // unlike the others, this one is scaled!
+	uint32_t configure_serial;
 	int scale;
 	struct nwl_surface *parent; // if a subsurface
 	struct wl_list outputs; // nwl_surface_output
