@@ -223,10 +223,6 @@ void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) 
 		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
 		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
 	}
-	uint32_t scaled_width, scaled_height;
-	scaled_width = surface->width*surface->scale;
-	scaled_height = surface->height*surface->scale;
-	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
 	surface->render.impl->swap_buffers(surface, x, y);
 }
 

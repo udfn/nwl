@@ -84,12 +84,17 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
+	uint32_t scaled_width, scaled_height;
+	scaled_width = surface->width*surface->scale;
+	scaled_height = surface->height*surface->scale;
+	wl_surface_damage_buffer(surface->wl.surface, 0, 0, scaled_width, scaled_height);
+
 	if (c->shm) {
 		if (c->next_buffer) {
 			wl_surface_attach(surface->wl.surface, c->next_buffer->wl_buffer, x, y);
+			wl_surface_commit(surface->wl.surface);
 			// Maybe this is where a nwl specific surface attach comes in handy to set this flag..
 			c->next_buffer->flags |= NWL_SHM_BUFFER_ACQUIRED;
-			wl_surface_commit(surface->wl.surface);
 			c->next_buffer = NULL;
 		}
 	} else {
