@@ -17,7 +17,6 @@ struct wl_callback_listener callback_listener;
 static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
 	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 	surface->render.impl->apply_size(surface);
-	wl_surface_set_buffer_scale(surface->wl.surface, surface->scale);
 }
 
 void nwl_surface_render(struct nwl_surface *surface) {

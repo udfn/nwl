@@ -59,6 +59,7 @@ static void nwl_cairo_set_size(struct nwl_surface *surface) {
 	}
 	surface->current_width = scaled_width;
 	surface->current_height = scaled_height;
+	wl_surface_set_buffer_scale(surface->wl.surface, surface->scale);
 }
 
 static void nwl_cairo_surface_destroy(struct nwl_surface *surface) {
