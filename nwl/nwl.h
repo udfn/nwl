@@ -19,6 +19,7 @@ struct nwl_output {
 	struct zxdg_output_v1 *xdg_output;
 	struct wl_list link;
 	int scale;
+	uint8_t is_done;
 	int32_t x;
 	int32_t y;
 	int32_t width;

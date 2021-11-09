@@ -77,8 +77,14 @@ static void handle_output_done(
 		void *data,
 		struct wl_output *wl_output) {
 	// don't care
-	UNUSED(data);
 	UNUSED(wl_output);
+	struct nwl_output *nwloutput = data;
+	if (nwloutput->is_done > 0) {
+		nwloutput->is_done--;
+		if (!nwloutput->is_done && nwloutput->state->events.output_new) {
+			nwloutput->state->events.output_new(nwloutput);
+		}
+	}
 }
 static void handle_output_scale(
 		void *data,
@@ -165,20 +171,18 @@ static void nwl_output_create(struct wl_output *output, struct nwl_state *state,
 	wl_output_set_user_data(output, nwloutput);
 	nwloutput->output = output;
 	nwloutput->state = state;
+	nwloutput->is_done = 1;
 	wl_list_insert(&state->outputs, &nwloutput->link);
-	struct nwl_global *glob = calloc(1,sizeof(struct nwl_global));
+	struct nwl_global *glob = calloc(1, sizeof(struct nwl_global));
 	glob->global = nwloutput;
 	glob->name = name;
 	glob->impl.destroy = nwl_output_destroy;
 	if (state->wl.xdg_output_manager) {
+		nwloutput->is_done = 2;
 		nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(state->wl.xdg_output_manager, output);
 		zxdg_output_v1_add_listener(nwloutput->xdg_output, &xdg_output_listener, nwloutput);
 	}
 	wl_list_insert(&state->globals, &glob->link);
-	// Maybe move this to handle_output_done?
-	if (state->events.output_new) {
-		state->events.output_new(nwloutput);
-	}
 }
 
 static void *nwl_registry_bind(struct wl_registry *reg, uint32_t name,
@@ -363,10 +367,8 @@ char nwl_wayland_init(struct nwl_state *state) {
 	state->wl.registry = wl_display_get_registry(state->wl.display);
 	wl_registry_add_listener(state->wl.registry, &reg_listener, state);
 	wl_display_roundtrip(state->wl.display);
-	if (state->wl.xdg_output_manager) {
-		// Extra roundtrip so output information is properly filled in
-		wl_display_roundtrip(state->wl.display);
-	}
+	// Extra roundtrip so output information is properly filled in
+	wl_display_roundtrip(state->wl.display);
 	return 0;
 }
 
