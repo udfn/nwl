@@ -89,7 +89,9 @@ static struct nwl_shm_buffer *try_check_buffer(struct nwl_shm_bufferman *bm, str
 			return NULL;
 		}
 		if (buf->flags & NWL_SHM_BUFFER_DESTROY) {
-			bm->impl->buffer_destroy(buf, bm);
+			if (bm->impl) {
+				bm->impl->buffer_destroy(buf, bm);
+			}
 			wl_buffer_destroy(buf->wl_buffer);
 		} else {
 			return buf;
@@ -99,7 +101,9 @@ static struct nwl_shm_buffer *try_check_buffer(struct nwl_shm_bufferman *bm, str
 	buf->flags = 0;
 	buf->bufferdata = bm->pool.data+offset; // Ugh..
 	wl_buffer_add_listener(buf->wl_buffer, &buffer_listener, buf);
-	bm->impl->buffer_create(buf, bm);
+	if (bm->impl) {
+		bm->impl->buffer_create(buf, bm);
+	}
 	return buf;
 }
 
@@ -143,7 +147,9 @@ struct nwl_shm_bufferman *nwl_shm_bufferman_create() {
 
 static void destroy_buffer(struct nwl_shm_buffer *buf, struct nwl_shm_bufferman *bufferman) {
 	if (buf->wl_buffer) {
-		bufferman->impl->buffer_destroy(buf, bufferman);
+		if (bufferman->impl) {
+			bufferman->impl->buffer_destroy(buf, bufferman);
+		}
 		wl_buffer_destroy(buf->wl_buffer);
 	}
 }
