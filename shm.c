@@ -160,3 +160,49 @@ void nwl_shm_bufferman_destroy(struct nwl_shm_bufferman *bufferman) {
 	destroy_buffer(&bufferman->buffers[1], bufferman);
 	free(bufferman);
 }
+
+struct nwl_shm_state_sub {
+	uint32_t *formats;
+	uint32_t len;
+	uint32_t alloc_len;
+};
+
+static void shm_sub_destroy(void *data) {
+	struct nwl_shm_state_sub *sub = data;
+	free(sub->formats);
+	free(sub);
+}
+
+static const struct nwl_state_sub_impl shm_subimpl = {
+	shm_sub_destroy
+};
+
+static void shm_handle_format(void *data, struct wl_shm *shm, uint32_t format) {
+	UNUSED(shm);
+	struct nwl_shm_state_sub *sub = data;
+	sub->len++;
+	if (sub->len > sub->alloc_len) {
+		uint32_t new_alloc_len = sub->len+8;
+		sub->formats = realloc(sub->formats, sizeof(uint32_t)*new_alloc_len);
+		sub->alloc_len = new_alloc_len;
+	}
+	sub->formats[sub->len-1] = format;
+}
+
+static const struct wl_shm_listener shm_listener = {
+	shm_handle_format
+};
+
+void nwl_shm_add_listener(struct nwl_state *state) {
+	void *sub = calloc(sizeof(struct nwl_shm_state_sub), 1);
+	wl_shm_add_listener(state->wl.shm, &shm_listener, sub);
+	nwl_state_add_sub(state, &shm_subimpl, sub);
+}
+
+void nwl_shm_get_supported_formats(struct nwl_state *state, uint32_t **formats, uint32_t *len) {
+	struct nwl_shm_state_sub *sub = nwl_state_get_sub(state, &shm_subimpl);
+	if (sub) {
+		*len = sub->len;
+		*formats = sub->formats;
+	}
+}

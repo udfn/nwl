@@ -26,6 +26,9 @@ struct nwl_poll {
 
 // in seat.c
 void nwl_seat_add_data_device(struct nwl_seat *seat);
+// in shm.c
+void nwl_shm_add_listener(struct nwl_state * state);
+
 
 static void handle_wm_ping(void *data, struct xdg_wm_base *xdg_wm_base, uint32_t serial) {
 	UNUSED(data);
@@ -210,6 +213,7 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 		nwl_seat_create(newseat, state, name);
 	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
 		state->wl.shm = nwl_registry_bind(reg, name, &wl_shm_interface, version);
+		nwl_shm_add_listener(state);
 	} else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
 		state->wl.decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version);
 	} else if (strcmp(interface, wl_output_interface.name) == 0) {
@@ -444,7 +448,7 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 }
 
 // These should be moved into state.c or something..
-void *nwl_state_get_sub(struct nwl_state *state, struct nwl_state_sub_impl *subimpl) {
+void *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl) {
 	struct nwl_state_sub *sub;
 	wl_list_for_each(sub, &state->subs, link) {
 		if (sub->impl == subimpl) {
@@ -453,7 +457,7 @@ void *nwl_state_get_sub(struct nwl_state *state, struct nwl_state_sub_impl *subi
 	}
 	return NULL; // EVIL NULL POINTER!
 }
-void nwl_state_add_sub(struct nwl_state *state, struct nwl_state_sub_impl *subimpl, void *data) {
+void nwl_state_add_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl, void *data) {
 	struct nwl_state_sub *sub = calloc(1, sizeof(struct nwl_state_sub));
 	sub->data = data;
 	sub->impl = subimpl;

@@ -4,7 +4,6 @@
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <xkbcommon/xkbcommon-compose.h>
-#include <locale.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/timerfd.h>

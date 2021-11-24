@@ -2,6 +2,7 @@
 #define _NWL_SHM_H_
 #include <unistd.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 struct nwl_state;
 
@@ -52,5 +53,5 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bufferman, struct nwl_st
 	uint32_t width, uint32_t height, uint32_t stride, uint32_t format);
 struct nwl_shm_bufferman *nwl_shm_bufferman_create();
 void nwl_shm_bufferman_destroy(struct nwl_shm_bufferman *bufferman);
-
+void nwl_shm_get_supported_formats(struct nwl_state *state, uint32_t **formats, uint32_t *len);
 #endif

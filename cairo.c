@@ -31,7 +31,7 @@ static void nwl_cairo_state_destroy(void *data) {
 	free(cairodata);
 }
 
-static struct nwl_state_sub_impl cairo_subimpl = {
+static const struct nwl_state_sub_impl cairo_subimpl = {
 	nwl_cairo_state_destroy
 };
 

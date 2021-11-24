@@ -61,7 +61,7 @@ static void egl_sub_destroy(void *data) {
 	free(data);
 }
 
-static struct nwl_state_sub_impl egl_subimpl = {
+static const struct nwl_state_sub_impl egl_subimpl = {
 	egl_sub_destroy
 };
 
