@@ -79,6 +79,10 @@ void nwl_egl_surface_set_size(struct nwl_surface_egl *egl, struct nwl_surface *s
 	if (!egl->window) {
 		egl->window = wl_egl_window_create(surface->wl.surface, width, height);
 		egl->surface = eglCreatePlatformWindowSurfaceEXT(egl->egl->display, egl->egl->config, egl->window, NULL);
+		// Apparently setting swap interval to 0 is a good idea. So do that.
+		eglMakeCurrent(egl->egl->display, egl->surface, egl->surface, egl->egl->context);
+		eglSwapInterval(egl->egl->display, 0);
+		eglMakeCurrent(egl->egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 	} else {
 		wl_egl_window_resize(egl->window, width, height, 0, 0);
 	}
