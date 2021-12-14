@@ -210,8 +210,8 @@ static void nwl_output_create(struct wl_output *output, struct nwl_state *state,
 }
 
 static void *nwl_registry_bind(struct wl_registry *reg, uint32_t name,
-		const struct wl_interface *interface, int version) {
-	uint32_t ver = version > interface->version ? interface->version : version;
+		const struct wl_interface *interface, uint32_t version, uint32_t preferred_version) {
+	uint32_t ver = version > preferred_version ? preferred_version : version;
 	return wl_registry_bind(reg, name, interface, ver);
 }
 
@@ -223,31 +223,31 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 		return;
 	}
 	if (strcmp(interface, wl_compositor_interface.name) == 0) {
-		state->wl.compositor = nwl_registry_bind(reg, name, &wl_compositor_interface, version);
+		state->wl.compositor = nwl_registry_bind(reg, name, &wl_compositor_interface, version, 5);
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
-		state->wl.layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version);
+		state->wl.layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version, 4);
 	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version);
+		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version, 3);
 		xdg_wm_base_add_listener(state->wl.xdg_wm_base, &wm_base_listener, state);
 	} else if (strcmp(interface, wl_seat_interface.name) == 0) {
-		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version);
+		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version, 7);
 		nwl_seat_create(newseat, state, name);
 	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
-		state->wl.shm = nwl_registry_bind(reg, name, &wl_shm_interface, version);
+		state->wl.shm = nwl_registry_bind(reg, name, &wl_shm_interface, version, 1);
 		nwl_shm_add_listener(state);
 	} else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
-		state->wl.decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version);
+		state->wl.decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version, 1);
 	} else if (strcmp(interface, wl_output_interface.name) == 0) {
-		struct wl_output *newoutput = nwl_registry_bind(reg, name, &wl_output_interface, version);
+		struct wl_output *newoutput = nwl_registry_bind(reg, name, &wl_output_interface, version, 4);
 		nwl_output_create(newoutput, state, name);
 	} else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
-		state->wl.viewporter = nwl_registry_bind(reg, name, &wp_viewporter_interface, version);
+		state->wl.viewporter = nwl_registry_bind(reg, name, &wp_viewporter_interface, version, 1);
 	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
-		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version);
+		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version, 1);
 	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
-		state->wl.xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version);
+		state->wl.xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version, 3);
 	} else if (strcmp(interface, wl_data_device_manager_interface.name) == 0) {
-		state->wl.data_device_manager = nwl_registry_bind(reg, name, &wl_data_device_manager_interface, version);
+		state->wl.data_device_manager = nwl_registry_bind(reg, name, &wl_data_device_manager_interface, version, 3);
 		// Maybe this global shows after seats?
 		struct nwl_seat *seat;
 		wl_list_for_each(seat, &state->seats, link) {
