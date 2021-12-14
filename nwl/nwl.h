@@ -25,6 +25,7 @@ struct nwl_output {
 	int32_t width;
 	int32_t height;
 	char *name;
+	char *description;
 };
 // Need a better name for these
 struct nwl_state_sub_impl {

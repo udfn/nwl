@@ -79,7 +79,6 @@ static void handle_output_mode(void *data,
 static void handle_output_done(
 		void *data,
 		struct wl_output *wl_output) {
-	// don't care
 	UNUSED(wl_output);
 	struct nwl_output *nwloutput = data;
 	if (nwloutput->is_done > 0) {
@@ -89,6 +88,7 @@ static void handle_output_done(
 		}
 	}
 }
+
 static void handle_output_scale(
 		void *data,
 		struct wl_output *wl_output,
@@ -98,11 +98,31 @@ static void handle_output_scale(
 	output->scale = factor;
 }
 
+static void handle_output_name(void *data, struct wl_output *wl_output, const char *name) {
+	UNUSED(wl_output);
+	struct nwl_output *output = data;
+	if (output->name) {
+		free(output->name);
+	}
+	output->name = strdup(name);
+}
+
+static void handle_output_description(void *data, struct wl_output *wl_output, const char *description) {
+	UNUSED(wl_output);
+	struct nwl_output *output = data;
+	if (output->description) {
+		free(output->description);
+	}
+	output->description = strdup(description);
+}
+
 static const struct wl_output_listener output_listener = {
 	handle_output_geometry,
 	handle_output_mode,
 	handle_output_done,
-	handle_output_scale
+	handle_output_scale,
+	handle_output_name,
+	handle_output_description,
 };
 
 static void handle_xdg_output_logical_position(void *data, struct zxdg_output_v1 *output,
@@ -131,13 +151,14 @@ static void handle_xdg_output_name(void *data, struct zxdg_output_v1 *output, co
 	UNUSED(output);
 	struct nwl_output *nwloutput = data;
 	if (nwloutput->name) {
-		free(nwloutput->name);
+		// wl_output name is preferred
+		return;
 	}
 	nwloutput->name = strdup(name);
 }
 
 static void handle_xdg_output_description(void *data, struct zxdg_output_v1 *output, const char *description) {
-	// don't care
+	// don't care, use wl_output description
 	UNUSED(data);
 	UNUSED(output);
 	UNUSED(description);
