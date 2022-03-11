@@ -27,7 +27,7 @@ struct nwl_poll {
 // in seat.c
 void nwl_seat_add_data_device(struct nwl_seat *seat);
 // in shm.c
-void nwl_shm_add_listener(struct nwl_state * state);
+void nwl_shm_add_listener(struct nwl_state *state);
 
 
 static void handle_wm_ping(void *data, struct xdg_wm_base *xdg_wm_base, uint32_t serial) {
@@ -179,6 +179,9 @@ static void nwl_output_destroy(void *glob) {
 	}
 	if (output->name) {
 		free(output->name);
+	}
+	if (output->description) {
+		free(output->description);
 	}
 	if (output->xdg_output) {
 		zxdg_output_v1_destroy(output->xdg_output);
