@@ -13,34 +13,6 @@ static char nwl_egl_init(struct nwl_state *state, struct nwl_egl_data *data) {
 		fprintf(stderr, "failed to init EGL\n");
 		return 1;
 	}
-
-	static const EGLint config[] = {
-		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-		EGL_RED_SIZE, 8,
-		EGL_GREEN_SIZE, 8,
-		EGL_BLUE_SIZE, 8,
-		EGL_ALPHA_SIZE, 8,
-		EGL_DEPTH_SIZE, 1,
-		EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-		EGL_NONE
-	};
-	EGLint confignum = 0;
-	if (!eglBindAPI(EGL_OPENGL_API)) {
-		fprintf(stderr, "failed to bind OpenGL API\n");
-		return 1;
-	}
-	if (!eglChooseConfig(data->display, config, &data->config, 1, &confignum)) {
-		fprintf(stderr, "failed to choose EGL config\n");
-		return 1;
-	}
-	EGLint attribs[] = {
-		EGL_NONE
-	};
-	data->context = eglCreateContext(data->display, data->config, EGL_NO_CONTEXT, attribs);
-	if (!data->context) {
-		fprintf(stderr, "failed to create EGL context\n");
-		return 1;
-	}
 	return 0;
 }
 
@@ -51,7 +23,6 @@ static void nwl_egl_uninit(struct nwl_egl_data *egl) {
 	if (egl->display) {
 		eglTerminate(egl->display);
 	}
-	egl->context = NULL;
 	egl->display = NULL;
 }
 
@@ -75,12 +46,12 @@ static bool nwl_egl_try_init(struct nwl_state *state, struct nwl_egl_data *egl) 
 	return true;
 }
 
-void nwl_egl_surface_set_size(struct nwl_surface_egl *egl, struct nwl_surface *surface, uint32_t width, uint32_t height) {
+void nwl_egl_surface_set_size(struct nwl_egl_surface *egl, struct nwl_surface *surface, uint32_t width, uint32_t height) {
 	if (!egl->window) {
 		egl->window = wl_egl_window_create(surface->wl.surface, width, height);
-		egl->surface = eglCreatePlatformWindowSurfaceEXT(egl->egl->display, egl->egl->config, egl->window, NULL);
+		egl->surface = eglCreatePlatformWindowSurfaceEXT(egl->egl->display, egl->config, egl->window, NULL);
 		// Apparently setting swap interval to 0 is a good idea. So do that.
-		eglMakeCurrent(egl->egl->display, egl->surface, egl->surface, egl->egl->context);
+		eglMakeCurrent(egl->egl->display, egl->surface, egl->surface, egl->context);
 		eglSwapInterval(egl->egl->display, 0);
 		eglMakeCurrent(egl->egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 	} else {
@@ -88,20 +59,71 @@ void nwl_egl_surface_set_size(struct nwl_surface_egl *egl, struct nwl_surface *s
 	}
 }
 
-static void egl_surface_destroy_surface(struct nwl_surface_egl *egl) {
+static void egl_surface_destroy_surface(struct nwl_egl_surface *egl) {
 	if (egl->window) {
 		wl_egl_window_destroy(egl->window);
 		eglDestroySurface(egl->egl->display, egl->surface);
-		egl->window = NULL;
+	}
+	if (egl->context) {
+		if (egl->context != egl->egl->context) {
+			eglDestroyContext(egl->egl->display, egl->context);
+		}
 	}
 }
 
-void nwl_surface_egl_destroy(struct nwl_surface_egl *egl) {
+void nwl_egl_surface_destroy(struct nwl_egl_surface *egl) {
 	egl_surface_destroy_surface(egl);
 	free(egl);
 }
 
-struct nwl_surface_egl *nwl_egl_surface_create(struct nwl_state *state) {
+bool nwl_egl_surface_global_context(struct nwl_egl_surface *egl) {
+	struct nwl_egl_data *glob_egl = egl->egl;
+	if (glob_egl->context) {
+		egl->context = glob_egl->context;
+		egl->config = glob_egl->config;
+		return true;
+	}
+	// ugh
+	if (nwl_egl_surface_create_context(egl)) {
+		glob_egl->context = egl->context;
+		glob_egl->config = egl->config;
+		return true;
+	}
+	return false;
+}
+
+bool nwl_egl_surface_create_context(struct nwl_egl_surface *egl) {
+	const EGLint config[] = {
+		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+		EGL_RED_SIZE, 8,
+		EGL_GREEN_SIZE, 8,
+		EGL_BLUE_SIZE, 8,
+		EGL_ALPHA_SIZE, 8,
+		EGL_DEPTH_SIZE, 1,
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+		EGL_NONE
+	};
+	EGLint confignum = 0;
+	if (!eglBindAPI(EGL_OPENGL_API)) {
+		fprintf(stderr, "failed to bind OpenGL API\n");
+		return false;
+	}
+	if (!eglChooseConfig(egl->egl->display, config, &egl->config, 1, &confignum)) {
+		fprintf(stderr, "failed to choose EGL config\n");
+		return false;
+	}
+	EGLint attribs[] = {
+		EGL_NONE
+	};
+	egl->context = eglCreateContext(egl->egl->display, egl->config, EGL_NO_CONTEXT, attribs);
+	if (!egl->context) {
+		fprintf(stderr, "failed to create EGL context\n");
+		return false;
+	}
+	return true;
+}
+
+struct nwl_egl_surface *nwl_egl_surface_create(struct nwl_state *state) {
 	struct nwl_egl_data *egl = nwl_state_get_sub(state, &egl_subimpl);
 	if (!egl) {
 		egl = calloc(1, sizeof(struct nwl_egl_data));
@@ -114,7 +136,7 @@ struct nwl_surface_egl *nwl_egl_surface_create(struct nwl_state *state) {
 			return NULL;
 		}
 	}
-	struct nwl_surface_egl *surface_egl = calloc(sizeof(struct nwl_surface_egl), 1);
+	struct nwl_egl_surface *surface_egl = calloc(sizeof(struct nwl_egl_surface), 1);
 	surface_egl->egl = egl;
 	return surface_egl;
 }

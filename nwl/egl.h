@@ -13,15 +13,19 @@ struct nwl_egl_data {
 	char inited;
 };
 
-struct nwl_surface_egl {
+struct nwl_egl_surface {
 	struct wl_egl_window *window;
 	EGLSurface surface;
+	EGLConfig config;
+	EGLContext context;
 	struct nwl_egl_data *egl;
 };
 
 // This needs improvement, e.g. ability to request specific API etc..
-struct nwl_surface_egl *nwl_egl_surface_create(struct nwl_state *state);
-void nwl_egl_surface_set_size(struct nwl_surface_egl *egl, struct nwl_surface *surface, uint32_t width, uint32_t height);
-void nwl_surface_egl_destroy(struct nwl_surface_egl *egl);
+struct nwl_egl_surface *nwl_egl_surface_create(struct nwl_state *state);
+bool nwl_egl_surface_create_context(struct nwl_egl_surface *egl);
+bool nwl_egl_surface_global_context(struct nwl_egl_surface *egl);
+void nwl_egl_surface_set_size(struct nwl_egl_surface *egl, struct nwl_surface *surface, uint32_t width, uint32_t height);
+void nwl_egl_surface_destroy(struct nwl_egl_surface *egl);
 
 #endif
