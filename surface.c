@@ -14,15 +14,11 @@ void surface_mark_dirty(struct nwl_surface *surface);
 
 struct wl_callback_listener callback_listener;
 
-static void nwl_surface_real_apply_size(struct nwl_surface *surface) {
-	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-	surface->render.impl->apply_size(surface);
-}
-
 void nwl_surface_render(struct nwl_surface *surface) {
 	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_DRAW;
 	if (surface->states & NWL_SURFACE_STATE_NEEDS_APPLY_SIZE) {
-		nwl_surface_real_apply_size(surface);
+		surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+		surface->render.impl->apply_size(surface);
 	}
 	surface->render.impl->render(surface);
 }
