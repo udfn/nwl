@@ -11,9 +11,12 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 	if (surf->impl.configure) {
 		surf->impl.configure(surf, width, height);
 	} else if (surf->width != width || surf->height != height) {
-		surf->width = width;
-		surf->height = height;
-		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+		// refuse to set sizes to zero
+		if (width > 0 && height > 0) {
+			surf->width = width;
+			surf->height = height;
+			surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+		}
 	}
 	surf->configure_serial = serial;
 	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
