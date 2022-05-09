@@ -92,8 +92,6 @@ static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32
 		if (c->next_buffer) {
 			wl_surface_attach(surface->wl.surface, c->next_buffer->wl_buffer, x, y);
 			wl_surface_commit(surface->wl.surface);
-			// Maybe this is where a nwl specific surface attach comes in handy to set this flag..
-			c->next_buffer->flags |= NWL_SHM_BUFFER_ACQUIRED;
 			c->next_buffer = NULL;
 		}
 	} else {
@@ -106,7 +104,9 @@ static void nwl_cairo_render(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	surface->render.rendering = true;
 	if (c->shm) {
-		c->next_buffer = nwl_shm_bufferman_get_next(c->backend.shm);
+		if (!c->next_buffer) {
+			c->next_buffer = nwl_shm_bufferman_get_next(c->backend.shm);
+		}
 		// What if there is no next buffer?
 		if (c->next_buffer) {
 			c->renderfunc(surface, c->next_buffer->data);

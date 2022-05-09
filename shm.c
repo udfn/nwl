@@ -112,6 +112,7 @@ struct nwl_shm_buffer *nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *buff
 	if (!buf) {
 		buf = try_check_buffer(bufferman, &bufferman->buffers[1], bufferman->stride * bufferman->height);
 	}
+	buf->flags |= NWL_SHM_BUFFER_ACQUIRED;
 	return buf;
 }
 
