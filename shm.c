@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200112L
+#define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -9,6 +9,7 @@
 #include "nwl/surface.h"
 #include "nwl/nwl.h"
 
+#if 0
 static void randname(char *buf) {
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
@@ -33,9 +34,10 @@ static int create_shm_file(void) {
 	} while (retries > 0 && errno == EEXIST);
 	return -1;
 }
+#endif
 
 int nwl_allocate_shm_file(size_t size) {
-	int fd = create_shm_file();
+	int fd = memfd_create("nwl shm", MFD_CLOEXEC);
 	if (fd < 0)
 		return -1;
 	int ret;
