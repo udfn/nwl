@@ -328,7 +328,11 @@ void surface_mark_dirty(struct nwl_surface *surface) {
 
 static void nwl_wayland_poll_display(struct nwl_state *state, void *data) {
 	UNUSED(data);
-	wl_display_dispatch(state->wl.display);
+	if (wl_display_dispatch(state->wl.display) == -1) {
+		perror("Fatal Wayland error");
+		state->num_surfaces = 0;
+		state->run_with_zero_surfaces = false;
+	}
 }
 
 static bool handle_dirty_surfaces(struct nwl_state *state) {
@@ -367,7 +371,7 @@ void nwl_wayland_run(struct nwl_state *state) {
 			perror("error while polling");
 			return;
 		}
-		for (int i = 0; i < nfds;i++) {
+		for (int i = 0; i < nfds; i++) {
 			struct nwl_poll_data *data = state->poll->ev[i].data.ptr;
 			data->callback(state, data->userdata);
 		}
