@@ -64,12 +64,6 @@ struct nwl_renderer {
 	bool rendering;
 };
 
-struct nwl_surface_output {
-	struct wl_list link;
-	// Should this be nwl_output instead?
-	struct wl_output *output;
-};
-
 struct nwl_surface {
 	struct wl_list link; // either linked to nwl_state, or another nwl_surface if subsurface
 	struct wl_list dirtlink; // link if dirty
@@ -88,8 +82,11 @@ struct nwl_surface {
 	uint32_t configure_serial;
 	int scale;
 	struct nwl_surface *parent; // if a subsurface
-	struct wl_list outputs; // nwl_surface_output
 	struct wl_list subsurfaces; // nwl_surface
+	struct {
+		struct nwl_output **outputs;
+		uint32_t amount;
+	} outputs;
 	enum nwl_surface_flags flags;
 	enum nwl_surface_states states;
 	char *title;

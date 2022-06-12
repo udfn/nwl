@@ -39,11 +39,10 @@ struct wl_callback_listener callback_listener = {
 
 static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
 	int scale = 1;
-	struct nwl_surface_output *surfoutput;
-	wl_list_for_each(surfoutput, &surf->outputs, link) {
-		struct nwl_output *nwoutput = wl_output_get_user_data(surfoutput->output);
-		if (nwoutput && nwoutput->scale > scale) {
-			scale = nwoutput->scale;
+	for (unsigned int i = 0; i < surf->outputs.amount; i++) {
+		struct nwl_output *output = surf->outputs.outputs[i];
+		if (output->scale > scale) {
+			scale = output->scale;
 		}
 	}
 	if (scale != surf->scale) {
@@ -56,9 +55,8 @@ static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
 static void handle_surface_enter(void *data, struct wl_surface *surface, struct wl_output *output) {
 	UNUSED(surface);
 	struct nwl_surface *surf = data;
-	struct nwl_surface_output *surfoutput = calloc(1, sizeof(struct nwl_surface_output));
-	surfoutput->output = output;
-	wl_list_insert(&surf->outputs, &surfoutput->link);
+	surf->outputs.outputs = realloc(surf->outputs.outputs, sizeof(struct nwl_output*) * ++surf->outputs.amount);
+	surf->outputs.outputs[surf->outputs.amount-1] = wl_output_get_user_data(output);
 	if (!(surf->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE)) {
 		surface_set_scale_from_outputs(surf);
 	}
@@ -67,14 +65,16 @@ static void handle_surface_enter(void *data, struct wl_surface *surface, struct 
 static void handle_surface_leave(void *data, struct wl_surface *surface, struct wl_output *output) {
 	UNUSED(surface);
 	struct nwl_surface *surf = data;
-	struct nwl_surface_output *surfoutput;
-	wl_list_for_each(surfoutput, &surf->outputs, link) {
-		if (surfoutput->output == output) {
-			break;
+	struct nwl_output *newoutputs[surf->outputs.amount-1];
+	int new_i = 0;
+	for (unsigned int i = 0; i < surf->outputs.amount; i++) {
+		struct nwl_output *nwloutput = surf->outputs.outputs[i];
+		if (nwloutput->output != output) {
+			newoutputs[new_i++] = nwloutput;
 		}
 	}
-	wl_list_remove(&surfoutput->link);
-	free(surfoutput);
+	surf->outputs.outputs = realloc(surf->outputs.outputs, sizeof(struct nwl_output*) * --surf->outputs.amount);
+	memcpy(surf->outputs.outputs, newoutputs, sizeof(struct nwl_output*) * surf->outputs.amount);
 	if (!(surf->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE)) {
 		surface_set_scale_from_outputs(surf);
 	}
@@ -93,7 +93,6 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *titl
 		newsurf->title = strdup(title);
 	}
 	wl_list_init(&newsurf->subsurfaces);
-	wl_list_init(&newsurf->outputs);
 	wl_list_init(&newsurf->dirtlink);
 	wl_list_insert(&state->surfaces, &newsurf->link);
 	wl_surface_set_user_data(newsurf->wl.surface, newsurf);
@@ -146,10 +145,8 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 		surface->impl.destroy(surface);
 	}
 	surface->render.impl->destroy(surface);
-	struct nwl_surface_output *surfoutput, *surfoutputtmp;
-	wl_list_for_each_safe(surfoutput, surfoutputtmp, &surface->outputs, link) {
-		wl_list_remove(&surfoutput->link);
-		free(surfoutput);
+	if (surface->outputs.outputs) {
+		free(surface->outputs.outputs);
 	}
 	nwl_surface_destroy_role(surface);
 	// And finally, destroy subsurfaces!
