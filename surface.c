@@ -215,12 +215,16 @@ static void nwl_surface_ack_configure(struct nwl_surface *surface) {
 	surface->configure_serial = 0;
 }
 
-void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) {
-	surface->frame++;
+void nwl_surface_request_callback(struct nwl_surface *surface) {
 	if (!surface->wl.frame_cb) {
 		surface->wl.frame_cb = wl_surface_frame(surface->wl.surface);
 		wl_callback_add_listener(surface->wl.frame_cb, &callback_listener, surface);
 	}
+}
+
+void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) {
+	surface->frame++;
+	nwl_surface_request_callback(surface);
 	if (surface->configure_serial) {
 		nwl_surface_ack_configure(surface);
 	}

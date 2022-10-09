@@ -64,6 +64,7 @@ struct nwl_state {
 	uint32_t cursor_theme_size;
 	uint32_t num_surfaces;
 	bool run_with_zero_surfaces;
+	bool has_errored;
 	struct nwl_poll *poll;
 	struct {
 		// A wild output appears!
@@ -89,6 +90,8 @@ void nwl_state_add_sub(struct nwl_state *state, const struct nwl_state_sub_impl 
 void *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl);
 void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge trigger, etc?
 	nwl_poll_callback_t callback, void *data);
+bool nwl_poll_dispatch(struct nwl_state *state, int timeout);
 void nwl_poll_del_fd(struct nwl_state *state, int fd);
+void nwl_state_global_add(struct nwl_state *state, struct nwl_global global);
 
 #endif

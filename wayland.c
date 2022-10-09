@@ -330,6 +330,7 @@ static void nwl_wayland_poll_display(struct nwl_state *state, void *data) {
 	UNUSED(data);
 	if (wl_display_dispatch(state->wl.display) == -1) {
 		perror("Fatal Wayland error");
+		state->has_errored = true;
 		state->num_surfaces = 0;
 		state->run_with_zero_surfaces = false;
 	}
@@ -362,18 +363,25 @@ static void nwl_wayland_handle_dirt(struct nwl_state *state, void *data) {
 	while(handle_dirty_surfaces(state)) { }
 }
 
+bool nwl_poll_dispatch(struct nwl_state *state, int timeout) {
+	wl_display_flush(state->wl.display);
+	int nfds = epoll_wait(state->poll->epfd, state->poll->ev, state->poll->numfds, timeout);
+	if (nfds == -1 && errno != EINTR) {
+		perror("error while polling");
+		return false;
+	}
+	for (int i = 0; i < nfds; i++) {
+		struct nwl_poll_data *data = state->poll->ev[i].data.ptr;
+		data->callback(state, data->userdata);
+	}
+	return true;
+}
+
 void nwl_wayland_run(struct nwl_state *state) {
 	// Everything about this seems very flaky.. but it works!
 	while (state->run_with_zero_surfaces || state->num_surfaces) {
-		wl_display_flush(state->wl.display);
-		int nfds = epoll_wait(state->poll->epfd, state->poll->ev, state->poll->numfds, -1);
-		if (nfds == -1 && errno != EINTR) {
-			perror("error while polling");
+		if (!nwl_poll_dispatch(state, -1)) {
 			return;
-		}
-		for (int i = 0; i < nfds; i++) {
-			struct nwl_poll_data *data = state->poll->ev[i].data.ptr;
-			data->callback(state, data->userdata);
 		}
 	}
 }

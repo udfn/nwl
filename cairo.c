@@ -40,6 +40,12 @@ static void nwl_cairo_set_size(struct nwl_surface *surface) {
 	uint32_t scaled_width = surface->width * surface->scale;
 	uint32_t scaled_height = surface->height * surface->scale;
 	if (c->shm) {
+		// If a buffer is queued up release it.
+		// This should probably be more automagic..
+		if (c->next_buffer) {
+			nwl_shm_buffer_release(c->next_buffer);
+			c->next_buffer = NULL;
+		}
 		nwl_shm_bufferman_resize(c->backend.shm, surface->state, scaled_width, scaled_height,
 				cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, scaled_width), WL_SHM_FORMAT_ARGB8888);
 	} else {
@@ -88,6 +94,11 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, surface->current_width, surface->current_height);
+	if (wl_compositor_get_version(surface->state->wl.compositor) >= 5) {
+		wl_surface_offset(surface->wl.surface, x, y);
+		x = 0;
+		y = 0;
+	}
 	if (c->shm) {
 		if (c->next_buffer) {
 			wl_surface_attach(surface->wl.surface, c->next_buffer->wl_buffer, x, y);
@@ -95,7 +106,6 @@ static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32
 			c->next_buffer = NULL;
 		}
 	} else {
-		// x y for egl surfaces how?
 		cairo_gl_surface_swapbuffers(c->egl_surface);
 	}
 }
@@ -107,9 +117,11 @@ static void nwl_cairo_render(struct nwl_surface *surface) {
 		if (!c->next_buffer) {
 			c->next_buffer = nwl_shm_bufferman_get_next(c->backend.shm);
 		}
-		// What if there is no next buffer?
 		if (c->next_buffer) {
 			c->renderfunc(surface, c->next_buffer->data);
+		} else {
+			// Didn't get a buffer. Increase buffer slots..
+			nwl_shm_bufferman_set_slots(c->backend.shm, surface->state, c->backend.shm->num_slots + 1);
 		}
 	} else {
 		c->renderfunc(surface, c->egl_surface);
@@ -162,5 +174,7 @@ void nwl_surface_renderer_cairo(struct nwl_surface *surface, bool egl, nwl_surfa
 	}
 	dat->shm = true;
 	dat->backend.shm = nwl_shm_bufferman_create();
+	// Should slots default to 1 and then bufferman automagically bumps up the slots if needed?
+	nwl_shm_bufferman_set_slots(dat->backend.shm, surface->state, 1);
 	dat->backend.shm->impl = &cairo_shmbuffer_impl;
 }

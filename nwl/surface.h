@@ -123,6 +123,7 @@ void nwl_surface_destroy_later(struct nwl_surface *surface);
 bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height);
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height);
 void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y);
+void nwl_surface_request_callback(struct nwl_surface *surface);
 void nwl_surface_render(struct nwl_surface *surface);
 void nwl_surface_set_need_draw(struct nwl_surface *surface, bool rendernow);
 void nwl_surface_role_unset(struct nwl_surface *surface);
