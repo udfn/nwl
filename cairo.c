@@ -110,19 +110,28 @@ static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32
 	}
 }
 
+static struct nwl_shm_buffer* get_next_buffer(struct nwl_surface *surface) {
+	struct nwl_cairo_renderer_data *c = surface->render.data;
+	struct nwl_shm_buffer *buffer = nwl_shm_bufferman_get_next(c->backend.shm);
+	if (!buffer) {
+		// Increase slots and try again..
+		nwl_shm_bufferman_set_slots(c->backend.shm, surface->state, c->backend.shm->num_slots + 1);
+		buffer = nwl_shm_bufferman_get_next(c->backend.shm);
+	}
+	return buffer;
+}
+
 static void nwl_cairo_render(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	surface->render.rendering = true;
 	if (c->shm) {
 		if (!c->next_buffer) {
-			c->next_buffer = nwl_shm_bufferman_get_next(c->backend.shm);
+			c->next_buffer = get_next_buffer(surface);
 		}
 		if (c->next_buffer) {
 			c->renderfunc(surface, c->next_buffer->data);
-		} else {
-			// Didn't get a buffer. Increase buffer slots..
-			nwl_shm_bufferman_set_slots(c->backend.shm, surface->state, c->backend.shm->num_slots + 1);
 		}
+		// Do something special if no buffer?
 	} else {
 		c->renderfunc(surface, c->egl_surface);
 	}
