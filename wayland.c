@@ -230,7 +230,7 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
 		state->wl.layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version, 4);
 	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version, 3);
+		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version, 5);
 		xdg_wm_base_add_listener(state->wl.xdg_wm_base, &wm_base_listener, state);
 	} else if (strcmp(interface, wl_seat_interface.name) == 0) {
 		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version, 7);

@@ -108,19 +108,50 @@ static void handle_toplevel_close(void *data, struct xdg_toplevel *xdg_toplevel)
 	nwl_surface_destroy_later(surf);
 }
 
+static void handle_toplevel_bounds(void *data, struct xdg_toplevel *xdg_toplevel, int width, int height) {
+	UNUSED(xdg_toplevel);
+	struct nwl_surface *surface = data;
+	surface->role.toplevel.bounds_width = width;
+	surface->role.toplevel.bounds_height = height;
+}
+
+static void handle_toplevel_wm_caps(void *data, struct xdg_toplevel *xdg_toplevel, struct wl_array *caps) {
+	UNUSED(xdg_toplevel);
+	uint32_t *cap;
+	unsigned char new_caps = 0;
+	wl_array_for_each(cap, caps) {
+		switch (*cap) {
+			case XDG_TOPLEVEL_WM_CAPABILITIES_WINDOW_MENU:
+				new_caps |= NWL_XDG_WM_CAP_WINDOW_MENU;break;
+			case XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE:
+				new_caps |= NWL_XDG_WM_CAP_MAXIMIZE;break;
+			case XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN:
+				new_caps |= NWL_XDG_WM_CAP_FULLSCREEN;break;
+			case XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE:
+				new_caps |= NWL_XDG_WM_CAP_MINIMIZE;break;
+		}
+	}
+	struct nwl_surface *surface = data;
+	surface->role.toplevel.wm_capabilities = new_caps;
+}
+
 static const struct xdg_toplevel_listener toplevel_listener = {
 	handle_toplevel_configure,
-	handle_toplevel_close
+	handle_toplevel_close,
+	handle_toplevel_bounds,
+	handle_toplevel_wm_caps
 };
 
 static void handle_popup_configure(void *data, struct xdg_popup *xdg_popup, int32_t x, int32_t y, int32_t width, int32_t height) {
 	UNUSED(xdg_popup);
 	struct nwl_surface *surf = data;
-	surf->width = width;
-	surf->height = height;
-	surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-	UNUSED(x);
-	UNUSED(y);
+	if (surf->width != (uint32_t)width && surf->height != (uint32_t)height) {
+		surf->width = width;
+		surf->height = height;
+		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+	}
+	surf->role.popup.lx = x;
+	surf->role.popup.ly = y;
 }
 
 static void handle_popup_done(void *data, struct xdg_popup *xdg_popup) {
@@ -132,8 +163,8 @@ static void handle_popup_done(void *data, struct xdg_popup *xdg_popup) {
 static void handle_popup_repositioned(void *data, struct xdg_popup *xdg_popup, uint32_t token) {
 	UNUSED(data);
 	UNUSED(xdg_popup);
-	UNUSED(token);
-	// whatever
+	struct nwl_surface *surf = data;
+	surf->role.popup.reposition_token = token;
 }
 
 static const struct xdg_popup_listener popup_listener = {

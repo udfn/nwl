@@ -41,6 +41,13 @@ enum nwl_surface_role {
 	NWL_SURFACE_ROLE_DRAGICON
 };
 
+enum nwl_xdg_wm_caps {
+	NWL_XDG_WM_CAP_WINDOW_MENU = 1 << 0,
+	NWL_XDG_WM_CAP_MAXIMIZE = 1 << 1,
+	NWL_XDG_WM_CAP_FULLSCREEN = 1 << 2,
+	NWL_XDG_WM_CAP_MINIMIZE = 1 << 3
+};
+
 struct nwl_surface;
 typedef void (*nwl_surface_destroy_t)(struct nwl_surface *surface);
 typedef void (*nwl_surface_configure_t)(struct nwl_surface *surface, uint32_t width, uint32_t height);
@@ -94,12 +101,18 @@ struct nwl_surface {
 	union {
 		struct {
 			struct xdg_toplevel *wl;
+			unsigned char wm_capabilities; // nwl_xdg_wm_caps
+			int bounds_width;
+			int bounds_height;
 		} toplevel;
 		struct {
 			struct wl_subsurface *wl;
 		} subsurface;
 		struct {
 			struct xdg_popup *wl;
+			int32_t lx;
+			int32_t ly;
+			uint32_t reposition_token; // the latest received reposition token
 		} popup;
 		struct {
 			struct zwlr_layer_surface_v1 *wl;
