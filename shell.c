@@ -215,8 +215,9 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 		xdg_toplevel_set_title(surface->role.toplevel.wl, surface->title);
 	}
 	if (surface->state->wl.decoration) {
-		surface->wl.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->wl.decoration, surface->role.toplevel.wl);
-		zxdg_toplevel_decoration_v1_add_listener(surface->wl.xdg_decoration, &decoration_listener, surface);
+		surface->role.toplevel.decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(surface->state->wl.decoration,
+			surface->role.toplevel.wl);
+		zxdg_toplevel_decoration_v1_add_listener(surface->role.toplevel.decoration, &decoration_listener, surface);
 	}
 	if (surface->state->xdg_app_id) {
 		xdg_toplevel_set_app_id(surface->role.toplevel.wl, surface->state->xdg_app_id);

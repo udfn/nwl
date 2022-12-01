@@ -109,9 +109,9 @@ static void nwl_surface_destroy_role(struct nwl_surface *surface) {
 	}
 	if (surface->wl.xdg_surface) {
 		if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL) {
-			if (surface->wl.xdg_decoration) {
-				zxdg_toplevel_decoration_v1_destroy(surface->wl.xdg_decoration);
-				surface->wl.xdg_decoration = NULL;
+			if (surface->role.toplevel.decoration) {
+				zxdg_toplevel_decoration_v1_destroy(surface->role.toplevel.decoration);
+				surface->role.toplevel.decoration = NULL;
 			}
 			xdg_toplevel_destroy(surface->role.toplevel.wl);
 		} else if (surface->role_id == NWL_SURFACE_ROLE_POPUP) {
@@ -250,15 +250,13 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 		surface->parent = NULL;
 	}
 	nwl_surface_destroy_role(surface);
+	surface->states = 0;
 	memset(&surface->wl, 0, sizeof(surface->wl));
 	surface->wl.surface = wl_compositor_create_surface(surface->state->wl.compositor);
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
 	surface->render.impl->surface_destroy(surface);
-	if (surface->states & NWL_SURFACE_STATE_NEEDS_DRAW) {
-		surface->states = (surface->states & ~NWL_SURFACE_STATE_NEEDS_DRAW);
-	}
 	// Should nwl remember subsurface state and restore it?
 	struct nwl_surface *sub;
 	wl_list_for_each(sub, &surface->subsurfaces, link) {

@@ -78,7 +78,6 @@ struct nwl_surface {
 	struct {
 		struct wl_surface *surface;
 		struct xdg_surface *xdg_surface;
-		struct zxdg_toplevel_decoration_v1 *xdg_decoration;
 		struct wp_viewport *viewport;
 		struct wl_callback *frame_cb;
 	} wl;
@@ -101,6 +100,7 @@ struct nwl_surface {
 	union {
 		struct {
 			struct xdg_toplevel *wl;
+			struct zxdg_toplevel_decoration_v1 *decoration;
 			unsigned char wm_capabilities; // nwl_xdg_wm_caps
 			int bounds_width;
 			int bounds_height;
