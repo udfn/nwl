@@ -23,7 +23,7 @@ enum nwl_dnd_event_type {
 };
 
 struct nwl_dnd_event {
-	char type; // enum nwl_dnd_event_type
+	unsigned char type; // enum nwl_dnd_event_type
 	uint32_t serial;
 	struct nwl_surface *focus_surface;
 	wl_fixed_t x;
@@ -104,18 +104,18 @@ enum nwl_pointer_axis {
 };
 
 struct nwl_pointer_event {
-	char changed; // nwl_seat_pointer_event_changed
+	unsigned char changed; // nwl_seat_pointer_event_changed
 	uint32_t serial;
 	wl_fixed_t surface_x;
 	wl_fixed_t surface_y;
-	char buttons; // nwl_pointer_buttons
-	char buttons_prev;
+	unsigned char buttons; // nwl_pointer_buttons
+	unsigned char buttons_prev;
 	int32_t axis_discrete_vert;
 	int32_t axis_discrete_hori;
 	wl_fixed_t axis_hori;
 	wl_fixed_t axis_vert;
-	char axis_source; // nwl_pointer_axis_source
-	char axis_stop; // nwl_pointer_axis
+	unsigned char axis_source; // nwl_pointer_axis_source
+	unsigned char axis_stop; // nwl_pointer_axis
 	bool focus;
 };
 
