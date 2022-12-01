@@ -38,6 +38,9 @@ struct wl_callback_listener callback_listener = {
 };
 
 static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
+	if (surf->outputs.amount == 0) {
+		return;
+	}
 	int scale = 1;
 	for (unsigned int i = 0; i < surf->outputs.amount; i++) {
 		struct nwl_output *output = surf->outputs.outputs[i];
@@ -65,6 +68,13 @@ static void handle_surface_enter(void *data, struct wl_surface *surface, struct 
 static void handle_surface_leave(void *data, struct wl_surface *surface, struct wl_output *output) {
 	UNUSED(surface);
 	struct nwl_surface *surf = data;
+	if (surf->outputs.amount == 1) {
+		// Left all outputs, just free the array and don't do anything clever
+		free(surf->outputs.outputs);
+		surf->outputs.outputs = NULL;
+		surf->outputs.amount = 0;
+		return;
+	}
 	struct nwl_output *newoutputs[surf->outputs.amount-1];
 	int new_i = 0;
 	for (unsigned int i = 0; i < surf->outputs.amount; i++) {
