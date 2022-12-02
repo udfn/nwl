@@ -334,6 +334,11 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 	seat->pointer_event->focus = true;
 	seat->pointer_event->serial = serial;
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_MOTION | NWL_POINTER_EVENT_FOCUS;
+	// Clear button state if entering the same surface that was last focused.
+	// This so there isn't stale button state if focus was lost because of an interactive drag, for example.
+	if (seat->pointer_focus == seat->pointer_prev_focus) {
+		seat->pointer_event->buttons = 0;
+	}
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
 		nwl_seat_set_pointer_cursor(seat, "left_ptr");
 	}
@@ -422,7 +427,11 @@ static void handle_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
 		seat->pointer_focus->impl.input_pointer(seat->pointer_focus, seat, seat->pointer_event);
 	}
 	if (seat->pointer_event->changed & NWL_POINTER_EVENT_FOCUS && !seat->pointer_event->focus) {
+		seat->pointer_prev_focus = seat->pointer_focus;
 		seat->pointer_focus = NULL;
+	}
+	if (seat->pointer_event->changed & NWL_POINTER_EVENT_BUTTON) {
+		seat->pointer_event->buttons_prev = seat->pointer_event->buttons;
 	}
 	seat->pointer_event->changed = 0;
 	seat->pointer_event->axis_discrete_hori = 0;
@@ -430,7 +439,6 @@ static void handle_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
 	seat->pointer_event->axis_hori = 0;
 	seat->pointer_event->axis_vert = 0;
 	seat->pointer_event->axis_source = 0;
-	seat->pointer_event->buttons_prev = seat->pointer_event->buttons;
 }
 
 static char wl_axis_source_to_nwl(uint32_t axis_source) {
@@ -776,6 +784,9 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 			seat->pointer_focus = NULL;
 			seat->pointer_event->buttons = 0;
 			seat->pointer_event->buttons_prev = 0;
+		}
+		if (seat->pointer_prev_focus == surface) {
+			seat->pointer_prev_focus = NULL;
 		}
 		if (seat->keyboard_focus == surface) {
 			seat->keyboard_focus = NULL;
