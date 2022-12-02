@@ -193,7 +193,7 @@ static void nwl_output_destroy(void *glob) {
 }
 
 static void nwl_output_create(struct wl_output *output, struct nwl_state *state, uint32_t name) {
-	struct nwl_output *nwloutput = calloc(1,sizeof(struct nwl_output));
+	struct nwl_output *nwloutput = calloc(1, sizeof(struct nwl_output));
 	wl_output_add_listener(output, &output_listener, nwloutput);
 	wl_output_set_user_data(output, nwloutput);
 	nwloutput->output = output;
@@ -387,7 +387,7 @@ void nwl_wayland_run(struct nwl_state *state) {
 }
 
 char nwl_wayland_init(struct nwl_state *state) {
-	state->poll = calloc(1,sizeof(struct nwl_poll));
+	state->poll = calloc(1, sizeof(struct nwl_poll));
 	wl_list_init(&state->seats);
 	wl_list_init(&state->outputs);
 	wl_list_init(&state->surfaces);
@@ -407,6 +407,18 @@ char nwl_wayland_init(struct nwl_state *state) {
 	state->wl.registry = wl_display_get_registry(state->wl.display);
 	wl_registry_add_listener(state->wl.registry, &reg_listener, state);
 	wl_display_roundtrip(state->wl.display);
+	// Ask xdg output manager for xdg_outputs in case wl_output globals were sent before it.
+	if (state->wl.xdg_output_manager) {
+		struct nwl_output *nwloutput;
+		wl_list_for_each(nwloutput, &state->outputs, link) {
+			if (nwloutput->xdg_output) {
+				continue;
+			}
+			nwloutput->is_done = 2;
+			nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(state->wl.xdg_output_manager, nwloutput->output);
+			zxdg_output_v1_add_listener(nwloutput->xdg_output, &xdg_output_listener, nwloutput);
+		}
+	}
 	// Extra roundtrip so output information is properly filled in
 	wl_display_roundtrip(state->wl.display);
 	return 0;
