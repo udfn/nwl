@@ -212,6 +212,20 @@ void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t 
 	}
 }
 
+void nwl_surface_set_title(struct nwl_surface *surface, const char *title) {
+	if (surface->title) {
+		free(surface->title);
+	}
+	if (title) {
+		surface->title = strdup(title);
+		if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL) {
+			xdg_toplevel_set_title(surface->role.toplevel.wl, title);
+		}
+	} else {
+		surface->title = NULL;
+	}
+}
+
 static void nwl_surface_ack_configure(struct nwl_surface *surface) {
 	switch (surface->role_id) {
 		case NWL_SURFACE_ROLE_LAYER:
