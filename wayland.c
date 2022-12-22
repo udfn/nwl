@@ -387,26 +387,33 @@ void nwl_wayland_run(struct nwl_state *state) {
 }
 
 char nwl_wayland_init(struct nwl_state *state) {
-	state->poll = calloc(1, sizeof(struct nwl_poll));
 	wl_list_init(&state->seats);
 	wl_list_init(&state->outputs);
 	wl_list_init(&state->surfaces);
 	wl_list_init(&state->surfaces_dirty);
 	wl_list_init(&state->globals);
-	wl_list_init(&state->poll->data);
 	wl_list_init(&state->subs);
 	state->wl.display = wl_display_connect(NULL);
 	if (!state->wl.display) {
-		fprintf(stderr, "couldn't connect to Wayland display.\n");
+		fprintf(stderr, "Couldn't connect to Wayland compositor.\n");
 		return 1;
 	}
+	state->wl.registry = wl_display_get_registry(state->wl.display);
+	wl_registry_add_listener(state->wl.registry, &reg_listener, state);
+	if (wl_display_roundtrip(state->wl.display) == -1) {
+		fprintf(stderr, "Initial roundtrip failed.\n");
+		wl_registry_destroy(state->wl.registry);
+		wl_display_disconnect(state->wl.display);
+		return 1;
+	}
+
+	state->poll = calloc(1, sizeof(struct nwl_poll));
+	wl_list_init(&state->poll->data);
 	state->poll->epfd = epoll_create1(0);
 	state->poll->dirt_eventfd = eventfd(0, EFD_NONBLOCK);
 	nwl_poll_add_fd(state, wl_display_get_fd(state->wl.display), nwl_wayland_poll_display, NULL);
 	nwl_poll_add_fd(state, state->poll->dirt_eventfd, nwl_wayland_handle_dirt, NULL);
-	state->wl.registry = wl_display_get_registry(state->wl.display);
-	wl_registry_add_listener(state->wl.registry, &reg_listener, state);
-	wl_display_roundtrip(state->wl.display);
+
 	// Ask xdg output manager for xdg_outputs in case wl_output globals were sent before it.
 	if (state->wl.xdg_output_manager) {
 		struct nwl_output *nwloutput;
