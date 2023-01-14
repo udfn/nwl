@@ -99,6 +99,8 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *titl
 	newsurf->state = state;
 	newsurf->wl.surface = wl_compositor_create_surface(state->wl.compositor);
 	newsurf->scale = 1;
+	newsurf->desired_height = 480;
+	newsurf->desired_width = 640;
 	if (title) {
 		newsurf->title = strdup(title);
 	}
