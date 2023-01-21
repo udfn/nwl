@@ -94,7 +94,7 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, surface->current_width, surface->current_height);
-	if (wl_compositor_get_version(surface->state->wl.compositor) >= 5) {
+	if ((x != 0 || y != 0) && wl_compositor_get_version(surface->state->wl.compositor) >= 5) {
 		wl_surface_offset(surface->wl.surface, x, y);
 		x = 0;
 		y = 0;

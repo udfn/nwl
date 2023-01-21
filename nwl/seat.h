@@ -111,8 +111,9 @@ struct nwl_pointer_event {
 	wl_fixed_t surface_y;
 	unsigned char buttons; // nwl_pointer_buttons
 	unsigned char buttons_prev;
-	int32_t axis_discrete_vert;
-	int32_t axis_discrete_hori;
+	// Wheel value120, so 120 is one "click"
+	int32_t axis_value_vert;
+	int32_t axis_value_hori;
 	wl_fixed_t axis_hori;
 	wl_fixed_t axis_vert;
 	unsigned char axis_source; // nwl_pointer_axis_source

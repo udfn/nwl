@@ -434,8 +434,8 @@ static void handle_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
 		seat->pointer_event->buttons_prev = seat->pointer_event->buttons;
 	}
 	seat->pointer_event->changed = 0;
-	seat->pointer_event->axis_discrete_hori = 0;
-	seat->pointer_event->axis_discrete_vert = 0;
+	seat->pointer_event->axis_value_hori = 0;
+	seat->pointer_event->axis_value_vert = 0;
 	seat->pointer_event->axis_hori = 0;
 	seat->pointer_event->axis_vert = 0;
 	seat->pointer_event->axis_source = 0;
@@ -473,6 +473,7 @@ static void handle_pointer_axis_source(void *data, struct wl_pointer *wl_pointer
 	seat->pointer_event->axis_source |= wl_axis_source_to_nwl(axis_source);
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_AXIS;
 }
+
 static void handle_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer, uint32_t time,
 		uint32_t axis) {
 	UNUSED(wl_pointer);
@@ -480,17 +481,31 @@ static void handle_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer, 
 	struct nwl_seat *seat = data;
 	seat->pointer_event->axis_stop |= wl_axis_to_nwl(axis);
 }
+
 static void handle_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer, uint32_t axis,
 		int32_t discrete) {
 	UNUSED(wl_pointer);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
 	if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
-		seat->pointer_event->axis_discrete_vert += discrete;
+		seat->pointer_event->axis_value_vert += discrete * 120;
 	} else {
-		seat->pointer_event->axis_discrete_hori += discrete;
+		seat->pointer_event->axis_value_hori += discrete * 120;
 	}
 	seat->pointer_event->changed |= NWL_POINTER_EVENT_AXIS;
 }
+
+static void handle_pointer_axis_value120(void *data, struct wl_pointer *wl_pointer, uint32_t axis,
+		int32_t value120) {
+	UNUSED(wl_pointer);
+	struct nwl_seat *seat = (struct nwl_seat*)data;
+	if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+		seat->pointer_event->axis_value_vert += value120;
+	} else {
+		seat->pointer_event->axis_value_hori += value120;
+	}
+	seat->pointer_event->changed |= NWL_POINTER_EVENT_AXIS;
+}
+
 static const struct wl_pointer_listener pointer_listener = {
 	handle_pointer_enter,
 	handle_pointer_leave,
@@ -500,7 +515,8 @@ static const struct wl_pointer_listener pointer_listener = {
 	handle_pointer_frame,
 	handle_pointer_axis_source,
 	handle_pointer_axis_stop,
-	handle_pointer_axis_discrete
+	handle_pointer_axis_discrete,
+	handle_pointer_axis_value120
 };
 /*
 static void handle_touch_down(void *data,
