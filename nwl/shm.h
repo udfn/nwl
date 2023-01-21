@@ -11,7 +11,6 @@ struct nwl_shm_pool {
 	uint8_t *data;
 	struct wl_shm_pool *pool;
 	size_t size;
-	char *name;
 };
 
 enum nwl_shm_buffer_flags {

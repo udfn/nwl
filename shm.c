@@ -9,33 +9,6 @@
 #include "nwl/surface.h"
 #include "nwl/nwl.h"
 
-#if 0
-static void randname(char *buf) {
-	struct timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	long r = ts.tv_nsec;
-	for (int i = 0; i < 6; ++i) {
-		buf[i] = 'A'+(r&15)+(r&16)*2;
-		r >>= 5;
-	}
-}
-
-static int create_shm_file(void) {
-	int retries = 100;
-	do {
-		char name[] = "/nwl_shm-XXXXXX";
-		randname(name + sizeof(name) - 7);
-		--retries;
-		int fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
-		if (fd >= 0) {
-			shm_unlink(name);
-			return fd;
-		}
-	} while (retries > 0 && errno == EEXIST);
-	return -1;
-}
-#endif
-
 int nwl_allocate_shm_file(size_t size) {
 	int fd = memfd_create("nwl shm", MFD_CLOEXEC);
 	if (fd < 0)
@@ -52,17 +25,17 @@ int nwl_allocate_shm_file(size_t size) {
 }
 
 void nwl_shm_destroy_pool(struct nwl_shm_pool *shm) {
-	if (shm->fd) {
+	if (shm->fd != -1) {
 		wl_shm_pool_destroy(shm->pool);
 		munmap(shm->data, shm->size);
 		close(shm->fd);
-		shm->fd = 0;
+		shm->fd = -1;
 	}
 }
 
 void nwl_shm_set_size(struct nwl_shm_pool *shm, struct nwl_state *state, size_t pool_size) {
 	if (shm->size != pool_size) {
-		if (!shm->fd) {
+		if (shm->fd == -1) {
 			shm->fd = nwl_allocate_shm_file(pool_size);
 		} else {
 			wl_shm_pool_destroy(shm->pool);
@@ -175,7 +148,8 @@ struct nwl_shm_pool *nwl_shm_create(void) {
 
 struct nwl_shm_bufferman *nwl_shm_bufferman_create(void) {
 	struct nwl_shm_bufferman *bm = calloc(1, sizeof(struct nwl_shm_bufferman));
-	bm->num_slots = 2;
+	bm->num_slots = 1;
+	bm->pool.fd = -1;
 	return bm;
 }
 
