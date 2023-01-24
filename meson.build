@@ -2,7 +2,7 @@ project('nwl', 'c',
 	default_options: [
 		'c_std=c11'
 	],
-	version: '0.4 do-not-use'
+	version: '0.5 do-not-use'
 )
 cc = meson.get_compiler('c')
 wayland_client = dependency('wayland-client')
@@ -17,13 +17,13 @@ xkbc = dependency('xkbcommon')
 subdir('protocol')
 subdir('nwl')
 nwl_src = [
-	'cairo.c',
-	'egl.c',
-	'seat.c',
-	'shm.c',
-	'shell.c',
-	'surface.c',
-	'wayland.c',
+	'src/cairo.c',
+	'src/egl.c',
+	'src/seat.c',
+	'src/shm.c',
+	'src/shell.c',
+	'src/surface.c',
+	'src/wayland.c',
 	wlprotos
 ]
 nwl_deps = [
