@@ -52,6 +52,15 @@ static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
 		surf->scale = scale;
 		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 		nwl_surface_set_need_draw(surf, true);
+		// Compositor might not send output events to subsurfaces..
+		struct nwl_surface *sub;
+		wl_list_for_each(sub, &surf->subsurfaces, link) {
+			if (!(sub->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE) && sub->scale != scale) {
+				sub->scale = scale;
+				sub->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
+				nwl_surface_set_need_draw(sub, true);
+			}
+		}
 	}
 }
 
