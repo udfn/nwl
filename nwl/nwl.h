@@ -92,6 +92,7 @@ void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge t
 	nwl_poll_callback_t callback, void *data);
 bool nwl_poll_dispatch(struct nwl_state *state, int timeout);
 void nwl_poll_del_fd(struct nwl_state *state, int fd);
+int nwl_poll_get_fd(struct nwl_state *state);
 void nwl_state_global_add(struct nwl_state *state, struct nwl_global global);
 
 #endif

@@ -386,6 +386,13 @@ void nwl_wayland_run(struct nwl_state *state) {
 	}
 }
 
+int nwl_poll_get_fd(struct nwl_state *state) {
+	if (state->poll) {
+		return state->poll->epfd;
+	}
+	return -1;
+}
+
 char nwl_wayland_init(struct nwl_state *state) {
 	wl_list_init(&state->seats);
 	wl_list_init(&state->outputs);
