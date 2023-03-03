@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <wayland-client.h>
-#include "seat.h"
 
 struct xdg_positioner;
 
@@ -49,6 +48,10 @@ enum nwl_xdg_wm_caps {
 };
 
 struct nwl_surface;
+struct nwl_seat;
+struct nwl_keyboard_event;
+struct nwl_pointer_event;
+struct nwl_dnd_event;
 typedef void (*nwl_surface_destroy_t)(struct nwl_surface *surface);
 typedef void (*nwl_surface_configure_t)(struct nwl_surface *surface, uint32_t width, uint32_t height);
 typedef void (*nwl_surface_input_pointer_t)(struct nwl_surface *surface, struct nwl_seat *seat, struct nwl_pointer_event *event);

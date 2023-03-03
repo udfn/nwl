@@ -7,7 +7,11 @@
 #include "xdg-shell.h"
 #include "viewporter.h"
 #include "nwl/nwl.h"
+#include "nwl/config.h"
 #include "nwl/surface.h"
+#if NWL_HAS_SEAT
+#include "nwl/seat.h"
+#endif
 
 // Is in wayland.c
 void surface_mark_dirty(struct nwl_surface *surface);
@@ -156,8 +160,10 @@ static void nwl_surface_destroy_role(struct nwl_surface *surface) {
 }
 
 void nwl_surface_destroy(struct nwl_surface *surface) {
+#if NWL_HAS_SEAT
 	// clear any focuses
 	nwl_seat_clear_focus(surface);
+#endif
 	if (!wl_list_empty(&surface->dirtlink)) {
 		wl_list_remove(&surface->dirtlink);
 	}

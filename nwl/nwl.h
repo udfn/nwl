@@ -58,7 +58,6 @@ struct nwl_state {
 	struct wl_list surfaces_dirty; // nwl_surface dirtlink
 	struct wl_list globals; // nwl_global
 	struct wl_list subs; // nwl_state_sub
-	struct xkb_context *keyboard_context;
 
 	struct wl_cursor_theme *cursor_theme;
 	uint32_t cursor_theme_size;

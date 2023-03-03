@@ -1,8 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 #include <wayland-client.h>
 #include <wayland-cursor.h>
-#include <xkbcommon/xkbcommon.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
+#include "nwl/seat.h"
+#include "nwl/config.h"
 #include "wlr-layer-shell-unstable-v1.h"
 #include "xdg-shell.h"
 #include "xdg-decoration-unstable-v1.h"
@@ -232,9 +234,6 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
 		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version, 5);
 		xdg_wm_base_add_listener(state->wl.xdg_wm_base, &wm_base_listener, state);
-	} else if (strcmp(interface, wl_seat_interface.name) == 0) {
-		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version, 8);
-		nwl_seat_create(newseat, state, name);
 	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
 		state->wl.shm = nwl_registry_bind(reg, name, &wl_shm_interface, version, 1);
 		nwl_shm_add_listener(state);
@@ -249,6 +248,11 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version, 1);
 	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
 		state->wl.xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version, 3);
+	}
+#if NWL_HAS_SEAT
+	else if (strcmp(interface, wl_seat_interface.name) == 0) {
+		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version, 8);
+		nwl_seat_create(newseat, state, name);
 	} else if (strcmp(interface, wl_data_device_manager_interface.name) == 0) {
 		state->wl.data_device_manager = nwl_registry_bind(reg, name, &wl_data_device_manager_interface, version, 3);
 		// Maybe this global shows after seats?
@@ -260,6 +264,7 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 			nwl_seat_add_data_device(seat);
 		}
 	}
+#endif
 }
 
 static void handle_global_remove(void *data, struct wl_registry *reg, uint32_t name) {
@@ -462,18 +467,18 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 		wl_list_remove(&sub->link);
 		free(sub);
 	}
-	if (state->keyboard_context) {
-		xkb_context_unref(state->keyboard_context);
-	}
 	struct nwl_global *glob, *globtmp;
 	wl_list_for_each_safe(glob, globtmp, &state->globals, link) {
 		glob->impl.destroy(glob->global);
 		wl_list_remove(&glob->link);
 		free(glob);
 	}
+	// This should be moved out of here.
+#if NWL_HAS_SEAT
 	if (state->cursor_theme) {
 		wl_cursor_theme_destroy(state->cursor_theme);
 	}
+#endif
 	if (state->wl.compositor) {
 		wl_compositor_destroy(state->wl.compositor);
 	}
