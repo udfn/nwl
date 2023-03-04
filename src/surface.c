@@ -107,21 +107,27 @@ static const struct wl_surface_listener surface_listener = {
 	handle_surface_leave
 };
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title) {
-	struct nwl_surface *newsurf = calloc(1, sizeof(struct nwl_surface));
-	newsurf->state = state;
-	newsurf->wl.surface = wl_compositor_create_surface(state->wl.compositor);
-	newsurf->scale = 1;
-	newsurf->desired_height = 480;
-	newsurf->desired_width = 640;
+void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title) {
+	*surface = (struct nwl_surface){0};
+	surface->state = state;
+	surface->wl.surface = wl_compositor_create_surface(state->wl.compositor);
+	surface->scale = 1;
+	surface->desired_height = 480;
+	surface->desired_width = 640;
 	if (title) {
-		newsurf->title = strdup(title);
+		surface->title = strdup(title);
 	}
-	wl_list_init(&newsurf->subsurfaces);
-	wl_list_init(&newsurf->dirtlink);
-	wl_list_insert(&state->surfaces, &newsurf->link);
-	wl_surface_set_user_data(newsurf->wl.surface, newsurf);
-	wl_surface_add_listener(newsurf->wl.surface, &surface_listener, newsurf);
+	wl_list_init(&surface->subsurfaces);
+	wl_list_init(&surface->dirtlink);
+	wl_list_insert(&state->surfaces, &surface->link);
+	wl_surface_set_user_data(surface->wl.surface, surface);
+	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
+}
+
+struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title) {
+	struct nwl_surface *newsurf = malloc(sizeof(struct nwl_surface));
+	nwl_surface_init(newsurf, state, title);
+	newsurf->flags |= NWL_SURFACE_FLAG_NWL_FREES;
 	return newsurf;
 }
 
@@ -168,9 +174,7 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 		wl_list_remove(&surface->dirtlink);
 	}
 	wl_list_remove(&surface->link);
-	if (surface->impl.destroy) {
-		surface->impl.destroy(surface);
-	}
+
 	surface->render.impl->destroy(surface);
 	if (surface->outputs.outputs) {
 		free(surface->outputs.outputs);
@@ -184,7 +188,13 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	if (surface->title) {
 		free(surface->title);
 	}
-	free(surface);
+	bool should_free = surface->flags & NWL_SURFACE_FLAG_NWL_FREES;
+	if (surface->impl.destroy) {
+		surface->impl.destroy(surface);
+	}
+	if (should_free) {
+		free(surface);
+	}
 }
 
 void nwl_surface_destroy_later(struct nwl_surface *surface) {
