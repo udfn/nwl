@@ -77,7 +77,6 @@ struct nwl_state {
 		void (*global_remove)(struct nwl_state *statem, struct wl_registry *registry, uint32_t name);
 	} events;
 	const char *xdg_app_id; // This app_id is conveniently automagically set on xdg_toplevels, if not null
-	void *userdata;
 };
 
 typedef void (*nwl_poll_callback_t)(struct nwl_state *state, void* data);
