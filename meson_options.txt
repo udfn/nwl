@@ -1,0 +1,1 @@
+option('seat', type: 'feature', value:'enabled', description: 'Seat support. Very much needed for input!')
