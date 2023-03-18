@@ -2,7 +2,6 @@ const std = @import("std");
 
 const WlScannerStep = struct {
     step: std.Build.Step,
-    builder: *std.Build,
     queue: std.SinglyLinkedList([]const u8),
     system_queue: std.SinglyLinkedList([]const u8),
     // Figure out whether it's smarter to inject the C files directly into libs like this..
@@ -16,11 +15,15 @@ const WlScannerStep = struct {
         const res = try b.allocator.create(Self);
         const dest_path = try std.fs.path.join(b.allocator, &.{ b.cache_root.path.?, "wl-gen" });
         res.* = .{
-            .step = std.Build.Step.init(.custom, "wl-scanner", b.allocator, make),
+            .step = std.Build.Step.init(.{
+                .id = .custom,
+                .name = "wayland-scanner",
+                .owner = b,
+                .makeFn = make
+            }),
             .queue = .{},
             .system_queue = .{},
             .dest_libs = .{},
-            .builder = b,
             .dest_path = dest_path,
             .gen_server_headers = false,
             .client_header_suffix = "-client-protocol.h",
@@ -28,15 +31,15 @@ const WlScannerStep = struct {
         return res;
     }
     pub fn linkWith(self: *Self, lib: *std.Build.CompileStep) void {
-        const node = self.builder.allocator.create(std.SinglyLinkedList(*std.Build.CompileStep).Node) catch @panic("OOM");
+        const node = self.step.owner.allocator.create(std.SinglyLinkedList(*std.Build.CompileStep).Node) catch @panic("OOM");
         node.data = lib;
         lib.step.dependOn(&self.step);
         lib.addIncludePath(self.dest_path);
         self.dest_libs.prepend(node);
     }
     pub fn addProtocol(self: *Self, xml: []const u8) void {
-        const node = self.builder.allocator.create(std.SinglyLinkedList([]const u8).Node) catch @panic("OOM");
-        node.data = self.builder.dupe(xml);
+        const node = self.step.owner.allocator.create(std.SinglyLinkedList([]const u8).Node) catch @panic("OOM");
+        node.data = self.step.owner.dupe(xml);
         self.queue.prepend(node);
     }
     pub fn addProtocolFromPath(self: *Self, base: []const u8, xml: []const u8) void {
@@ -46,7 +49,7 @@ const WlScannerStep = struct {
     }
     pub fn addSystemProtocols(self: *Self, xmls: []const []const u8) void {
         for (xmls) |x| {
-            const node = self.builder.allocator.create(std.SinglyLinkedList([]const u8).Node) catch @panic("OOM");
+            const node = self.step.owner.allocator.create(std.SinglyLinkedList([]const u8).Node) catch @panic("OOM");
             node.data = x;
             self.system_queue.prepend(node);
         }
@@ -73,13 +76,8 @@ const WlScannerStep = struct {
     const WlScanError = error{WaylandScannerFail};
 
     fn runScanner(self: *Self, protocol: []const u8, gentype: WlScanGenType, output: []const u8) !void {
-        var child = std.ChildProcess.init(&.{ "wayland-scanner", gentype.toString(), protocol, output }, self.builder.allocator);
-        child.env_map = self.builder.env_map;
-        child.spawn() catch |err| {
-            std.log.err("Unable to spawn wayland-scanner: {s}", .{@errorName(err)});
-            return WlScanError.WaylandScannerFail;
-        };
-        _ = try child.wait();
+        var code:u8 = undefined;
+        _ = try self.step.owner.execAllowFail(&.{ "wayland-scanner", gentype.toString(), protocol, output }, &code, .Ignore);
     }
 
     fn processProtocol(self: *Self, ally: std.mem.Allocator, protocol: []const u8, gentype: WlScanGenType, destdir: *const std.fs.Dir, realdestpath: []const u8) !void {
@@ -98,6 +96,8 @@ const WlScannerStep = struct {
         if (needscanner) {
             var fullpath = try std.fs.path.join(ally, &.{ realdestpath, filename });
             try self.runScanner(protocol, gentype, fullpath);
+            // Should use the cache system here instead of... this..
+            self.step.result_cached = false;
         }
         if (gentype == .code) {
             var it = self.dest_libs.first;
@@ -124,14 +124,17 @@ const WlScannerStep = struct {
         }
     }
 
-    pub fn make(step: *std.Build.Step) !void {
+    pub fn make(step: *std.Build.Step, progress: *std.Progress.Node) !void {
+        _ = progress;
         const self = @fieldParentPtr(Self, "step", step);
+        const builder = step.owner;
         var it = self.queue.first;
         if (self.queue.first == null and self.system_queue.first == null) {
             return;
         }
-        const dest = try std.fs.cwd().makeOpenPath(self.builder.pathFromRoot(self.dest_path), .{});
-        const realdestpath = try dest.realpathAlloc(self.builder.allocator, ".");
+        step.result_cached = true;
+        const dest = try std.fs.cwd().makeOpenPath(builder.pathFromRoot(self.dest_path), .{});
+        const realdestpath = try dest.realpathAlloc(builder.allocator, ".");
         while (it) |node| : (it = node.next) {
             try self.process(node.data, &dest, realdestpath);
         }
@@ -149,7 +152,8 @@ const WlScannerStep = struct {
     }
     fn getSysWlProtocolsDir(self: *Self) ![]const u8 {
         // Don't really like doing this, but you gotta do what you gotta do..
-        const systemprotodir = try self.builder.exec(&.{ "pkg-config", "--variable=pkgdatadir", "wayland-protocols" });
+        var code:u8 = undefined;
+        const systemprotodir = try self.step.owner.execAllowFail(&.{ "pkg-config", "--variable=pkgdatadir", "wayland-protocols" }, &code, .Ignore);
         return std.mem.trim(u8, systemprotodir, &std.ascii.whitespace);
     }
 };
