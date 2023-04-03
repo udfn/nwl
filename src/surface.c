@@ -108,12 +108,25 @@ static const struct wl_surface_listener surface_listener = {
 };
 
 void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title) {
-	*surface = (struct nwl_surface){0};
 	surface->state = state;
+	surface->frame = 0;
+	surface->wl.surface = NULL;
+	surface->wl.xdg_surface = NULL;
+	surface->wl.viewport = NULL;
+	surface->wl.frame_cb = NULL;
+	surface->outputs.amount = 0;
+	surface->outputs.outputs = NULL;
+	surface->role_id = NWL_SURFACE_ROLE_NONE;
 	surface->wl.surface = wl_compositor_create_surface(state->wl.compositor);
 	surface->scale = 1;
-	surface->desired_height = 480;
-	surface->desired_width = 640;
+	if (surface->desired_height == 0) {
+		surface->desired_height = 480;
+	}
+	if (surface->desired_width == 0) {
+		surface->desired_width = 640;
+	}
+	surface->configure_serial = 0;
+	surface->states = 0;
 	if (title) {
 		surface->title = strdup(title);
 	}
@@ -126,8 +139,18 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 
 struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title) {
 	struct nwl_surface *newsurf = malloc(sizeof(struct nwl_surface));
+	newsurf->flags = NWL_SURFACE_FLAG_NWL_FREES;
+	newsurf->impl.destroy = NULL;
+	newsurf->impl.input_pointer = NULL;
+	newsurf->impl.input_keyboard = NULL;
+	newsurf->impl.dnd = NULL;
+	newsurf->impl.configure = NULL;
+	newsurf->impl.close = NULL;
+	newsurf->desired_height = 480;
+	newsurf->desired_width = 640;
+	newsurf->render.impl = NULL;
+	newsurf->render.rendering = false;
 	nwl_surface_init(newsurf, state, title);
-	newsurf->flags |= NWL_SURFACE_FLAG_NWL_FREES;
 	return newsurf;
 }
 
