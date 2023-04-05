@@ -419,7 +419,8 @@ pub const Surface = extern struct {
     current_width: u32 = undefined,
     current_height: u32 = undefined,
     configure_serial: u32 = undefined,
-    scale: c_int = undefined,
+    scale: i32 = undefined,
+    scale_preferred: i32 = undefined,
     parent: ?*Surface = undefined,
     subsurfaces: WlList = .{},
     outputs: extern struct {

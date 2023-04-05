@@ -41,7 +41,15 @@ struct wl_callback_listener callback_listener = {
 	cb_done
 };
 
-static void surface_set_scale_from_outputs(struct nwl_surface *surf) {
+static void surface_autoscale(struct nwl_surface *surf) {
+	// Prefer preferred scale, if set
+	if (surf->scale_preferred) {
+		if (surf->scale != surf->scale_preferred) {
+			surf->scale = surf->scale_preferred;
+			nwl_surface_set_need_draw(surf, true);
+		}
+		return;
+	}
 	if (surf->outputs.amount == 0) {
 		return;
 	}
@@ -74,7 +82,7 @@ static void handle_surface_enter(void *data, struct wl_surface *surface, struct 
 	surf->outputs.outputs = realloc(surf->outputs.outputs, sizeof(struct nwl_output*) * ++surf->outputs.amount);
 	surf->outputs.outputs[surf->outputs.amount-1] = wl_output_get_user_data(output);
 	if (!(surf->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE)) {
-		surface_set_scale_from_outputs(surf);
+		surface_autoscale(surf);
 	}
 }
 
@@ -99,12 +107,31 @@ static void handle_surface_leave(void *data, struct wl_surface *surface, struct 
 	surf->outputs.outputs = realloc(surf->outputs.outputs, sizeof(struct nwl_output*) * --surf->outputs.amount);
 	memcpy(surf->outputs.outputs, newoutputs, sizeof(struct nwl_output*) * surf->outputs.amount);
 	if (!(surf->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE)) {
-		surface_set_scale_from_outputs(surf);
+		surface_autoscale(surf);
 	}
 }
+
+static void handle_preferred_scale(void *data, struct wl_surface *surface, int32_t factor) {
+	UNUSED(surface);
+	struct nwl_surface *surf = data;
+	surf->scale_preferred = factor;
+	if (!(surf->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE)) {
+		surface_autoscale(surf);
+	}
+}
+
+static void handle_preferred_transform(void *data, struct wl_surface *surface, uint32_t transform) {
+	// don't care, yet..?
+	UNUSED(data);
+	UNUSED(surface);
+	UNUSED(transform);
+}
+
 static const struct wl_surface_listener surface_listener = {
 	handle_surface_enter,
-	handle_surface_leave
+	handle_surface_leave,
+	handle_preferred_scale,
+	handle_preferred_transform
 };
 
 void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title) {
@@ -119,6 +146,7 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	surface->role_id = NWL_SURFACE_ROLE_NONE;
 	surface->wl.surface = wl_compositor_create_surface(state->wl.compositor);
 	surface->scale = 1;
+	surface->scale_preferred = 0;
 	if (surface->desired_height == 0) {
 		surface->desired_height = 480;
 	}

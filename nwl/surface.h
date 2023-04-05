@@ -90,7 +90,8 @@ struct nwl_surface {
 	uint32_t desired_width, desired_height;
 	uint32_t current_width, current_height; // unlike the others, this one is scaled!
 	uint32_t configure_serial;
-	int scale;
+	int32_t scale;
+	int32_t scale_preferred; // preferred scale, set by compositor
 	struct nwl_surface *parent; // if a subsurface
 	struct wl_list subsurfaces; // nwl_surface
 	struct {
