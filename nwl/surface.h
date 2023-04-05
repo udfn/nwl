@@ -92,7 +92,6 @@ struct nwl_surface {
 	uint32_t configure_serial;
 	int32_t scale;
 	int32_t scale_preferred; // preferred scale, set by compositor
-	struct nwl_surface *parent; // if a subsurface
 	struct wl_list subsurfaces; // nwl_surface
 	struct {
 		struct nwl_output **outputs;
@@ -112,6 +111,7 @@ struct nwl_surface {
 		} toplevel;
 		struct {
 			struct wl_subsurface *wl;
+			struct nwl_surface *parent;
 		} subsurface;
 		struct {
 			struct xdg_popup *wl;

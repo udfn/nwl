@@ -349,7 +349,6 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
 		wl_list_remove(&surface->link);
 		wl_list_insert(&surface->state->surfaces, &surface->link);
-		surface->parent = NULL;
 	}
 	nwl_surface_destroy_role(surface);
 	surface->states = 0;
@@ -373,7 +372,7 @@ bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface
 	}
 	surface->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->state->wl.subcompositor,
 			surface->wl.surface, parent->wl.surface);
-	surface->parent = parent;
+	surface->role.subsurface.parent = parent;
 	wl_list_remove(&surface->link);
 	wl_list_insert(&parent->subsurfaces, &surface->link);
 	surface->role_id = NWL_SURFACE_ROLE_SUB;

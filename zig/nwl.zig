@@ -398,7 +398,8 @@ pub const Surface = extern struct {
             wl: *ZwlrLayerSurfaceV1
         },
         subsurface: extern struct {
-            wl: *WlSubsurface
+            wl: *WlSubsurface,
+            parent: *Surface,
         },
     };
 
@@ -421,7 +422,6 @@ pub const Surface = extern struct {
     configure_serial: u32 = undefined,
     scale: i32 = undefined,
     scale_preferred: i32 = undefined,
-    parent: ?*Surface = undefined,
     subsurfaces: WlList = .{},
     outputs: extern struct {
         outputs: [*]*Output,
