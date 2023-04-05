@@ -209,6 +209,7 @@ bool nwl_surface_role_toplevel(struct nwl_surface *surface) {
 	}
 	surface->wl.xdg_surface = xdg_wm_base_get_xdg_surface(surface->state->wl.xdg_wm_base, surface->wl.surface);
 	surface->role.toplevel.wl = xdg_surface_get_toplevel(surface->wl.xdg_surface);
+	surface->role.toplevel.wm_capabilities = 255;
 	xdg_toplevel_add_listener(surface->role.toplevel.wl, &toplevel_listener, surface);
 	xdg_surface_add_listener(surface->wl.xdg_surface, &surface_listener, surface);
 	if (surface->title) {
