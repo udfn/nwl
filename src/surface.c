@@ -178,6 +178,7 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *titl
 	newsurf->desired_width = 640;
 	newsurf->render.impl = NULL;
 	newsurf->render.rendering = false;
+	newsurf->userdata = NULL;
 	nwl_surface_init(newsurf, state, title);
 	return newsurf;
 }
