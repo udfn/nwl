@@ -227,7 +227,7 @@ pub fn build(b: *std.build.Builder) !void {
         "unstable/xdg-output/xdg-output-unstable-v1.xml"
     });
     scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"));
-    nwl.install();
+    b.installArtifact(nwl);
     const headerinstall = b.addInstallDirectory(.{ .source_dir = "nwl", .install_dir = .header, .install_subdir = "nwl", .exclude_extensions = &.{"build"} });
     headerinstall.step.dependOn(&nwl.step);
     b.getInstallStep().dependOn(&headerinstall.step);
