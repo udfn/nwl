@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const WlScannerStep = struct {
+pub const WlScannerStep = struct {
     const Protocol = struct {
         xml:[]const u8,
         system:bool,
@@ -9,7 +9,8 @@ const WlScannerStep = struct {
     const WlScannerStepOptions = struct {
         optimize:std.builtin.OptimizeMode,
         target:std.zig.CrossTarget,
-        server_headers:bool = false
+        server_headers:bool = false,
+        client_header_suffix:[]const u8 = "-client-protocol.h"
     };
     const QueueType = std.SinglyLinkedList(Protocol);
     step: std.Build.Step,
@@ -37,7 +38,7 @@ const WlScannerStep = struct {
             }),
             .dest_path = dest_path,
             .gen_server_headers = options.server_headers,
-            .client_header_suffix = "-client-protocol.h",
+            .client_header_suffix = options.client_header_suffix
         };
         // Smarten this up, perhaps..
         const incpath = std.mem.trim(u8,b.exec(&.{"pkg-config", "--variable=includedir", "wayland-client"}), &std.ascii.whitespace);
@@ -216,9 +217,9 @@ pub fn build(b: *std.build.Builder) !void {
     nwl.addConfigHeader(conf);
     const scannerstep = try WlScannerStep.create(b, .{
         .target = target,
-        .optimize = optimize
+        .optimize = optimize,
+        .client_header_suffix = ".h"
     });
-    scannerstep.client_header_suffix = ".h";
     scannerstep.linkWith(nwl);
     scannerstep.addSystemProtocols(&.{
         "stable/viewporter/viewporter.xml",
@@ -228,7 +229,10 @@ pub fn build(b: *std.build.Builder) !void {
     });
     scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"));
     b.installArtifact(nwl);
-    const headerinstall = b.addInstallDirectory(.{ .source_dir = "nwl", .install_dir = .header, .install_subdir = "nwl", .exclude_extensions = &.{"build"} });
-    headerinstall.step.dependOn(&nwl.step);
-    b.getInstallStep().dependOn(&headerinstall.step);
+    nwl.installHeadersDirectoryOptions(.{
+        .source_dir = "nwl",
+        .install_dir = .header,
+        .install_subdir = "nwl",
+        .exclude_extensions = &.{"build"}
+    });
 }
