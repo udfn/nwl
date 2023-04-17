@@ -50,31 +50,22 @@ pub const WlScannerStep = struct {
         lib.linkLibrary(self.lib);
         lib.addIncludePath(self.dest_path);
     }
-    pub fn addProtocol(self: *Self, xml: []const u8) void {
+    pub fn addProtocol(self: *Self, xml: []const u8, system:bool) void {
         const node = self.step.owner.allocator.create(QueueType.Node) catch @panic("OOM");
         node.data = .{
-            .xml = self.step.owner.dupe(xml),
+            .xml = xml,
             .file = .{ .step = &self.step},
-            .system = false
+            .system = system
         };
         self.lib.addCSourceFileSource(.{.source = .{.generated = &node.data.file}, .args = &.{}});
         self.queue.prepend(node);
     }
     pub fn addProtocolFromPath(self: *Self, base: []const u8, xml: []const u8) void {
-        var pathbuf: [1024]u8 = undefined;
-        var ally = std.heap.FixedBufferAllocator.init(pathbuf[0..]);
-        self.addProtocol(std.fs.path.join(ally.allocator(), &.{ base, xml }) catch @panic("This wasn't supposed to happen..."));
+        self.addProtocol(self.step.owner.pathJoin(&.{ base, xml }), false);
     }
     pub fn addSystemProtocols(self: *Self, xmls: []const []const u8) void {
         for (xmls) |x| {
-            const node = self.step.owner.allocator.create(QueueType.Node) catch @panic("OOM");
-            node.data = .{
-                .xml = x,
-                .file = .{ .step = &self.step},
-                .system = true
-            };
-            self.lib.addCSourceFileSource(.{.source = .{.generated = &node.data.file}, .args = &.{}});
-            self.queue.prepend(node);
+            self.addProtocol(x, true);
         }
     }
     pub fn addProtocolsFromPath(self: *Self, base: []const u8, xmls: []const []const u8) void {
@@ -227,7 +218,7 @@ pub fn build(b: *std.build.Builder) !void {
         "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",
         "unstable/xdg-output/xdg-output-unstable-v1.xml"
     });
-    scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"));
+    scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"), false);
     b.installArtifact(nwl);
     nwl.installHeadersDirectoryOptions(.{
         .source_dir = "nwl",
