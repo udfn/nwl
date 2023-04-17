@@ -1,9 +1,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <time.h>
 #include <wayland-client.h>
 #include "nwl/shm.h"
 #include "nwl/surface.h"
@@ -24,7 +22,7 @@ int nwl_allocate_shm_file(size_t size) {
 	return fd;
 }
 
-void nwl_shm_destroy_pool(struct nwl_shm_pool *shm) {
+void nwl_shm_pool_finish(struct nwl_shm_pool *shm) {
 	if (shm->fd != -1) {
 		wl_shm_pool_destroy(shm->pool);
 		munmap(shm->data, shm->size);
@@ -125,7 +123,7 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct nwl_state *st
 	if (new_min_pool_size > bm->pool.size || (int)new_min_pool_size < (int)bm->pool.size-(512*1024)) {
 		// If any buffer is currently used by the compositor create a new shm file instead..
 		if (in_use) {
-			nwl_shm_destroy_pool(&bm->pool);
+			nwl_shm_pool_finish(&bm->pool);
 		}
 		// Add some extra so if the surface grows slightly the pool can be reused
 		nwl_shm_set_size(&bm->pool, state, new_min_pool_size+stride*30);
@@ -136,31 +134,20 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct nwl_state *st
 	bm->format = format;
 }
 
-void nwl_shm_destroy(struct nwl_shm_pool *shm) {
-	nwl_shm_destroy_pool(shm);
-	free(shm);
+void nwl_shm_bufferman_init(struct nwl_shm_bufferman *bufferman) {
+	*bufferman = (struct nwl_shm_bufferman) {
+		.num_slots = 1,
+		.pool.fd = -1
+	};
 }
 
-struct nwl_shm_pool *nwl_shm_create(void) {
-	// Why be like this?
-	return calloc(1, sizeof(struct nwl_shm_pool));
-}
-
-struct nwl_shm_bufferman *nwl_shm_bufferman_create(void) {
-	struct nwl_shm_bufferman *bm = calloc(1, sizeof(struct nwl_shm_bufferman));
-	bm->num_slots = 1;
-	bm->pool.fd = -1;
-	return bm;
-}
-
-void nwl_shm_bufferman_destroy(struct nwl_shm_bufferman *bufferman) {
-	nwl_shm_destroy_pool(&bufferman->pool);
+void nwl_shm_bufferman_finish(struct nwl_shm_bufferman *bufferman) {
 	for (int i = 0; i < NWL_SHM_BUFFERMAN_MAX_BUFFERS; i++) {
 		if (bufferman->buffers[i].wl_buffer) {
 			destroy_buffer(&bufferman->buffers[i], bufferman);
 		}
 	}
-	free(bufferman);
+	nwl_shm_pool_finish(&bufferman->pool);
 }
 
 struct nwl_shm_state_sub {

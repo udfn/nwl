@@ -6,9 +6,8 @@
 #include "nwl/surface.h"
 
 struct nwl_cairo_renderer_data {
-	cairo_surface_t *egl_surface;
 	nwl_surface_cairo_render_t renderfunc;
-	struct nwl_shm_bufferman *shm;
+	struct nwl_shm_bufferman shm;
 	struct nwl_shm_buffer *next_buffer;
 };
 
@@ -22,7 +21,7 @@ static void nwl_cairo_set_size(struct nwl_surface *surface) {
 		nwl_shm_buffer_release(c->next_buffer);
 		c->next_buffer = NULL;
 	}
-	nwl_shm_bufferman_resize(c->shm, surface->state, scaled_width, scaled_height,
+	nwl_shm_bufferman_resize(&c->shm, surface->state, scaled_width, scaled_height,
 			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, scaled_width), WL_SHM_FORMAT_ARGB8888);
 	surface->current_width = scaled_width;
 	surface->current_height = scaled_height;
@@ -36,14 +35,15 @@ static void nwl_cairo_surface_destroy(struct nwl_surface *surface) {
 
 static void nwl_cairo_destroy(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
-	nwl_shm_bufferman_destroy(c->shm);
+	nwl_shm_bufferman_finish(&c->shm);
 	free(surface->render.data);
+	surface->render.impl = NULL;
 }
 
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, surface->current_width, surface->current_height);
-	if ((x != 0 || y != 0) && wl_compositor_get_version(surface->state->wl.compositor) >= 5) {
+	if ((x != 0 || y != 0) && wl_surface_get_version(surface->wl.surface) >= 5) {
 		wl_surface_offset(surface->wl.surface, x, y);
 		x = 0;
 		y = 0;
@@ -57,11 +57,11 @@ static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32
 
 static struct nwl_shm_buffer* get_next_buffer(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
-	struct nwl_shm_buffer *buffer = nwl_shm_bufferman_get_next(c->shm);
+	struct nwl_shm_buffer *buffer = nwl_shm_bufferman_get_next(&c->shm);
 	if (!buffer) {
 		// Increase slots and try again..
-		nwl_shm_bufferman_set_slots(c->shm, surface->state, c->shm->num_slots + 1);
-		buffer = nwl_shm_bufferman_get_next(c->shm);
+		nwl_shm_bufferman_set_slots(&c->shm, surface->state, c->shm.num_slots + 1);
+		buffer = nwl_shm_bufferman_get_next(&c->shm);
 	}
 	return buffer;
 }
@@ -110,8 +110,6 @@ void nwl_surface_renderer_cairo(struct nwl_surface *surface, nwl_surface_cairo_r
 	struct nwl_cairo_renderer_data *dat = surface->render.data;
 	dat->renderfunc = renderfunc;
 	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-	dat->shm = nwl_shm_bufferman_create();
-	// Should slots default to 1 and then bufferman automagically bumps up the slots if needed?
-	nwl_shm_bufferman_set_slots(dat->shm, surface->state, 1);
-	dat->shm->impl = &cairo_shmbuffer_impl;
+	nwl_shm_bufferman_init(&dat->shm);
+	dat->shm.impl = &cairo_shmbuffer_impl;
 }

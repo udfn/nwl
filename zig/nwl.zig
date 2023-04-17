@@ -571,6 +571,9 @@ pub const ShmPool = extern struct {
     data:[*]u8 = undefined,
     pool:?*WlShmPool = null,
     size:usize = 0,
+
+    extern fn nwl_shm_pool_finish(pool:*ShmPool) void;
+    pub const finish = nwl_shm_pool_finish;
 };
 
 pub const ShmBufferMan = extern struct {
@@ -608,4 +611,6 @@ pub const ShmBufferMan = extern struct {
     pub const setSlots = nwl_shm_bufferman_set_slots;
     extern fn nwl_shm_bufferman_resize(bufferman:*ShmBufferMan, state:*State, width:u32, height:u32, stride:u32, format:u32) void;
     pub const resize = nwl_shm_bufferman_resize;
+    extern fn nwl_shm_bufferman_finish(bufferman:*ShmBufferMan) void;
+    pub const finish = nwl_shm_bufferman_finish;
 };
