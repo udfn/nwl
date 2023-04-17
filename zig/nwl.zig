@@ -315,9 +315,13 @@ pub const DataOffer = extern struct {
     mime: WlArray([*:0]u8),
     offer: ?*WlDataOffer,
 };
-
-pub const cairo_surface_t = opaque {};
-const nwl_surface_cairo_render_t = *const fn (*Surface, *cairo_surface_t) callconv(.C) void;
+pub const CairoSurface = extern struct {
+    const cairo_surface_t = opaque {};
+    const cairo_t = opaque {};
+    ctx:*cairo_t,
+    surface:*cairo_surface_t
+};
+const nwl_surface_cairo_render_t = *const fn (*Surface, *CairoSurface) callconv(.C) void;
 extern fn nwl_surface_renderer_cairo(surface: *Surface, renderfunc: nwl_surface_cairo_render_t, flags: i32) void;
 pub const surfaceRendererCairo = nwl_surface_renderer_cairo;
 

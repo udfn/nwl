@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <cairo.h>
 #include "nwl/cairo.h"
 #include "nwl/nwl.h"
 #include "nwl/shm.h"
@@ -8,7 +9,7 @@
 struct nwl_cairo_renderer_data {
 	nwl_surface_cairo_render_t renderfunc;
 	struct nwl_shm_bufferman shm;
-	cairo_surface_t* cairo_surfaces[NWL_SHM_BUFFERMAN_MAX_BUFFERS];
+	struct nwl_cairo_surface cairo_surfaces[NWL_SHM_BUFFERMAN_MAX_BUFFERS];
 	int next_buffer;
 };
 
@@ -70,7 +71,7 @@ static void nwl_cairo_render(struct nwl_surface *surface) {
 		c->next_buffer = get_next_buffer(surface);
 	}
 	if (c->next_buffer != -1) {
-		c->renderfunc(surface, c->cairo_surfaces[c->next_buffer]);
+		c->renderfunc(surface, &c->cairo_surfaces[c->next_buffer]);
 	}
 	// Do something special if no buffer?
 	surface->render.rendering = false;
@@ -85,13 +86,16 @@ static struct nwl_renderer_impl cairo_impl = {
 
 static void cairo_create_shm_buffer(unsigned int buf_idx, struct nwl_shm_bufferman *bm) {
 	struct nwl_cairo_renderer_data *data = wl_container_of(bm, data, shm);
-	data->cairo_surfaces[buf_idx] = cairo_image_surface_create_for_data(
+	data->cairo_surfaces[buf_idx].surface = cairo_image_surface_create_for_data(
 		bm->buffers[buf_idx].bufferdata, CAIRO_FORMAT_ARGB32, bm->width, bm->height, bm->stride);
+	cairo_t *ctx = cairo_create(data->cairo_surfaces[buf_idx].surface);
+	data->cairo_surfaces[buf_idx].ctx = ctx;
 }
 
 static void cairo_destroy_shm_buffer(unsigned int buf_idx, struct nwl_shm_bufferman *bm) {
 	struct nwl_cairo_renderer_data *data = wl_container_of(bm, data, shm);
-	cairo_surface_destroy(data->cairo_surfaces[buf_idx]);
+	cairo_destroy(data->cairo_surfaces[buf_idx].ctx);
+	cairo_surface_destroy(data->cairo_surfaces[buf_idx].surface);
 }
 
 static struct nwl_shm_bufferman_renderer_impl cairo_shmbuffer_impl = {
