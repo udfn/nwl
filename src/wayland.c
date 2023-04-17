@@ -422,7 +422,7 @@ char nwl_wayland_init(struct nwl_state *state) {
 	state->poll = calloc(1, sizeof(struct nwl_poll));
 	wl_list_init(&state->poll->data);
 	state->poll->epfd = epoll_create1(0);
-	state->poll->dirt_eventfd = eventfd(0, EFD_NONBLOCK);
+	state->poll->dirt_eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 	nwl_poll_add_fd(state, wl_display_get_fd(state->wl.display), nwl_wayland_poll_display, NULL);
 	nwl_poll_add_fd(state, state->poll->dirt_eventfd, nwl_wayland_handle_dirt, NULL);
 

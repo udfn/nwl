@@ -623,7 +623,7 @@ static void handle_seat_capabilities(void *data, struct wl_seat *seat, uint32_t 
 			nwseat->keyboard = wl_seat_get_keyboard(seat);
 			nwseat->keyboard_context = xkb_context_new(0);
 			nwseat->keyboard_event = calloc(1, sizeof(struct nwl_keyboard_event));
-			nwseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+			nwseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
 			nwl_poll_add_fd(nwseat->state, nwseat->keyboard_repeat_fd, nwl_seat_send_key_repeat, nwseat);
 			wl_keyboard_add_listener(nwseat->keyboard, &keyboard_listener, data);
 		}
