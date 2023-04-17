@@ -356,7 +356,6 @@ pub const Surface = extern struct {
         pub const Impl = extern struct {
             // Bug or feature? Using GenericSurfaceFn here is a dependency loop error..
             apply_size: *const fn (*Surface) callconv(.C) void,
-            surface_destroy: *const fn (*Surface) callconv(.C) void,
             swap_buffers: *const fn (*Surface, i32, i32) callconv(.C) void,
             render: *const fn (*Surface) callconv(.C) void,
             destroy: *const fn (*Surface) callconv(.C) void,

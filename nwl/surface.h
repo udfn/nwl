@@ -53,16 +53,15 @@ struct nwl_seat;
 struct nwl_keyboard_event;
 struct nwl_pointer_event;
 struct nwl_dnd_event;
+
 typedef void (*nwl_surface_destroy_t)(struct nwl_surface *surface);
 typedef void (*nwl_surface_configure_t)(struct nwl_surface *surface, uint32_t width, uint32_t height);
 typedef void (*nwl_surface_input_pointer_t)(struct nwl_surface *surface, struct nwl_seat *seat, struct nwl_pointer_event *event);
 typedef void (*nwl_surface_input_keyboard_t)(struct nwl_surface *surface, struct nwl_seat *seat, struct nwl_keyboard_event *event);
-
 typedef void (*nwl_surface_generic_func_t)(struct nwl_surface *surface);
 
 struct nwl_renderer_impl {
 	nwl_surface_generic_func_t apply_size;
-	nwl_surface_generic_func_t surface_destroy;
 	void (*swap_buffers)(struct nwl_surface *surface, int32_t x, int32_t y);
 	nwl_surface_generic_func_t render;
 	nwl_surface_generic_func_t destroy;

@@ -358,7 +358,6 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
-	surface->render.impl->surface_destroy(surface);
 	// Should nwl remember subsurface state and restore it?
 	struct nwl_surface *sub;
 	wl_list_for_each(sub, &surface->subsurfaces, link) {

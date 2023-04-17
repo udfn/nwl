@@ -29,11 +29,6 @@ static void nwl_cairo_set_size(struct nwl_surface *surface) {
 	wl_surface_set_buffer_scale(surface->wl.surface, surface->scale);
 }
 
-static void nwl_cairo_surface_destroy(struct nwl_surface *surface) {
-	// Hack.. maybe it would be better to just get rid of surface_destroy?
-	surface->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-}
-
 static void nwl_cairo_destroy(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	nwl_shm_bufferman_finish(&c->shm);
@@ -83,7 +78,6 @@ static void nwl_cairo_render(struct nwl_surface *surface) {
 
 static struct nwl_renderer_impl cairo_impl = {
 	nwl_cairo_set_size,
-	nwl_cairo_surface_destroy,
 	nwl_cairo_swap_buffers,
 	nwl_cairo_render,
 	nwl_cairo_destroy
