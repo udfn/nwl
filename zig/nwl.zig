@@ -577,6 +577,7 @@ pub const ShmPool = extern struct {
 };
 
 pub const ShmBufferMan = extern struct {
+    pub const max_buffers = 4;
     pub const Buffer = extern struct {
         const Flags = packed struct(u8) {
             acquired:bool = false,
@@ -585,7 +586,6 @@ pub const ShmBufferMan = extern struct {
         };
         wl_buffer:?*WlBuffer = null,
         bufferdata:[*]u8 = undefined,
-        data:?*anyopaque = null,
         flags:Flags = .{},
 
         pub fn release(self:*Buffer) void {
@@ -593,11 +593,11 @@ pub const ShmBufferMan = extern struct {
         }
     };
     pub const RendererImpl = extern struct {
-        buffer_create:*const fn(buffer:*Buffer, bufferman:*ShmBufferMan) callconv(.C) void,
-        buffer_destroy:*const fn(buffer:*Buffer, bufferman:*ShmBufferMan) callconv(.C) void,
+        buffer_create:*const fn(buf_idx:c_uint, bufferman:*ShmBufferMan) callconv(.C) void,
+        buffer_destroy:*const fn(buf_idx:c_uint, bufferman:*ShmBufferMan) callconv(.C) void,
     };
     pool:ShmPool = .{},
-    buffers:[4]Buffer = [_]Buffer{.{}} ** 4,
+    buffers:[max_buffers]Buffer = [_]Buffer{.{}} ** max_buffers,
     impl:?*const RendererImpl = null,
     width:u32 = 0,
     height:u32 = 0,
@@ -605,8 +605,14 @@ pub const ShmBufferMan = extern struct {
     format:u32 = 0,
     num_slots:u8 = 1,
 
-    extern fn nwl_shm_bufferman_get_next(bufferman:*ShmBufferMan) ?*Buffer;
-    pub const getNext = nwl_shm_bufferman_get_next;
+    extern fn nwl_shm_bufferman_get_next(bufferman:*ShmBufferMan) c_int;
+    pub fn getNext(bufferman:*ShmBufferMan) !c_uint {
+        const ret = bufferman.nwl_shm_bufferman_get_next();
+        if (ret != -1) {
+            return @intCast(c_uint, ret);
+        }
+        return error.NoAvailableBuffer;
+    }
     extern fn nwl_shm_bufferman_set_slots(bufferman:*ShmBufferMan, state:*State, num_slots:u8) void;
     pub const setSlots = nwl_shm_bufferman_set_slots;
     extern fn nwl_shm_bufferman_resize(bufferman:*ShmBufferMan, state:*State, width:u32, height:u32, stride:u32, format:u32) void;

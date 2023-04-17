@@ -8,7 +8,8 @@
 struct nwl_cairo_renderer_data {
 	nwl_surface_cairo_render_t renderfunc;
 	struct nwl_shm_bufferman shm;
-	struct nwl_shm_buffer *next_buffer;
+	cairo_surface_t* cairo_surfaces[NWL_SHM_BUFFERMAN_MAX_BUFFERS];
+	int next_buffer;
 };
 
 static void nwl_cairo_set_size(struct nwl_surface *surface) {
@@ -17,9 +18,9 @@ static void nwl_cairo_set_size(struct nwl_surface *surface) {
 	uint32_t scaled_height = surface->height * surface->scale;
 	// If a buffer is queued up release it.
 	// This should probably be more automagic..
-	if (c->next_buffer) {
-		nwl_shm_buffer_release(c->next_buffer);
-		c->next_buffer = NULL;
+	if (c->next_buffer != -1) {
+		nwl_shm_buffer_release(&c->shm.buffers[c->next_buffer]);
+		c->next_buffer = -1;
 	}
 	nwl_shm_bufferman_resize(&c->shm, surface->state, scaled_width, scaled_height,
 			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, scaled_width), WL_SHM_FORMAT_ARGB8888);
@@ -42,23 +43,24 @@ static void nwl_cairo_destroy(struct nwl_surface *surface) {
 
 static void nwl_cairo_swap_buffers(struct nwl_surface *surface, int32_t x, int32_t y) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
+	if (c->next_buffer == -1) {
+		return;
+	}
 	wl_surface_damage_buffer(surface->wl.surface, 0, 0, surface->current_width, surface->current_height);
 	if ((x != 0 || y != 0) && wl_surface_get_version(surface->wl.surface) >= 5) {
 		wl_surface_offset(surface->wl.surface, x, y);
 		x = 0;
 		y = 0;
 	}
-	if (c->next_buffer) {
-		wl_surface_attach(surface->wl.surface, c->next_buffer->wl_buffer, x, y);
-		wl_surface_commit(surface->wl.surface);
-		c->next_buffer = NULL;
-	}
+	wl_surface_attach(surface->wl.surface, c->shm.buffers[c->next_buffer].wl_buffer, x, y);
+	wl_surface_commit(surface->wl.surface);
+	c->next_buffer = -1;
 }
 
-static struct nwl_shm_buffer* get_next_buffer(struct nwl_surface *surface) {
+static int get_next_buffer(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
-	struct nwl_shm_buffer *buffer = nwl_shm_bufferman_get_next(&c->shm);
-	if (!buffer) {
+	int buffer = nwl_shm_bufferman_get_next(&c->shm);
+	if (buffer == -1) {
 		// Increase slots and try again..
 		nwl_shm_bufferman_set_slots(&c->shm, surface->state, c->shm.num_slots + 1);
 		buffer = nwl_shm_bufferman_get_next(&c->shm);
@@ -69,11 +71,11 @@ static struct nwl_shm_buffer* get_next_buffer(struct nwl_surface *surface) {
 static void nwl_cairo_render(struct nwl_surface *surface) {
 	struct nwl_cairo_renderer_data *c = surface->render.data;
 	surface->render.rendering = true;
-	if (!c->next_buffer) {
+	if (c->next_buffer == -1) {
 		c->next_buffer = get_next_buffer(surface);
 	}
-	if (c->next_buffer) {
-		c->renderfunc(surface, c->next_buffer->data);
+	if (c->next_buffer != -1) {
+		c->renderfunc(surface, c->cairo_surfaces[c->next_buffer]);
 	}
 	// Do something special if no buffer?
 	surface->render.rendering = false;
@@ -87,13 +89,15 @@ static struct nwl_renderer_impl cairo_impl = {
 	nwl_cairo_destroy
 };
 
-static void cairo_create_shm_buffer(struct nwl_shm_buffer *buf, struct nwl_shm_bufferman *bm) {
-	buf->data = cairo_image_surface_create_for_data(buf->bufferdata, CAIRO_FORMAT_ARGB32, bm->width, bm->height, bm->stride);
+static void cairo_create_shm_buffer(unsigned int buf_idx, struct nwl_shm_bufferman *bm) {
+	struct nwl_cairo_renderer_data *data = wl_container_of(bm, data, shm);
+	data->cairo_surfaces[buf_idx] = cairo_image_surface_create_for_data(
+		bm->buffers[buf_idx].bufferdata, CAIRO_FORMAT_ARGB32, bm->width, bm->height, bm->stride);
 }
 
-static void cairo_destroy_shm_buffer(struct nwl_shm_buffer *buf, struct nwl_shm_bufferman *bm) {
-	UNUSED(bm);
-	cairo_surface_destroy(buf->data);
+static void cairo_destroy_shm_buffer(unsigned int buf_idx, struct nwl_shm_bufferman *bm) {
+	struct nwl_cairo_renderer_data *data = wl_container_of(bm, data, shm);
+	cairo_surface_destroy(data->cairo_surfaces[buf_idx]);
 }
 
 static struct nwl_shm_bufferman_renderer_impl cairo_shmbuffer_impl = {

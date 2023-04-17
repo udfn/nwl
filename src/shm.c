@@ -56,23 +56,23 @@ static const struct wl_buffer_listener buffer_listener = {
 	handle_buffer_release
 };
 
-static void destroy_buffer(struct nwl_shm_buffer *buf, struct nwl_shm_bufferman *bufferman) {
+static void destroy_buffer(int buf_idx, struct nwl_shm_bufferman *bufferman) {
 	if (bufferman->impl) {
-		bufferman->impl->buffer_destroy(buf, bufferman);
+		bufferman->impl->buffer_destroy(buf_idx, bufferman);
 	}
-	wl_buffer_destroy(buf->wl_buffer);
+	wl_buffer_destroy(bufferman->buffers[buf_idx].wl_buffer);
 }
 
-static struct nwl_shm_buffer *try_check_buffer(struct nwl_shm_bufferman *bm, int buf_idx) {
+static bool try_check_buffer(struct nwl_shm_bufferman *bm, int buf_idx) {
 	struct nwl_shm_buffer *buf = &bm->buffers[buf_idx];
 	if (buf->wl_buffer) {
 		if (buf->flags & NWL_SHM_BUFFER_ACQUIRED) {
-			return NULL;
+			return false;
 		}
 		if (buf->flags & NWL_SHM_BUFFER_DESTROY) {
-			destroy_buffer(buf, bm);
+			destroy_buffer(buf_idx, bm);
 		} else {
-			return buf;
+			return true;
 		}
 	}
 	int32_t offset = (bm->pool.size/bm->num_slots) * buf_idx;
@@ -81,20 +81,19 @@ static struct nwl_shm_buffer *try_check_buffer(struct nwl_shm_bufferman *bm, int
 	buf->bufferdata = bm->pool.data+offset; // Ugh..
 	wl_buffer_add_listener(buf->wl_buffer, &buffer_listener, buf);
 	if (bm->impl) {
-		bm->impl->buffer_create(buf, bm);
+		bm->impl->buffer_create(buf_idx, bm);
 	}
-	return buf;
+	return true;
 }
 
-struct nwl_shm_buffer *nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman) {
+int nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman) {
 	for (int i = 0; i < bufferman->num_slots; i++) {
-		struct nwl_shm_buffer *buf = try_check_buffer(bufferman, i);
-		if (buf) {
-			buf->flags |= NWL_SHM_BUFFER_ACQUIRED;
-			return buf;
+		if (try_check_buffer(bufferman, i)) {
+			bufferman->buffers[i].flags |= NWL_SHM_BUFFER_ACQUIRED;
+			return i;
 		}
 	}
-	return NULL;
+	return -1;
 }
 
 void nwl_shm_buffer_release(struct nwl_shm_buffer *buffer) {
@@ -144,7 +143,7 @@ void nwl_shm_bufferman_init(struct nwl_shm_bufferman *bufferman) {
 void nwl_shm_bufferman_finish(struct nwl_shm_bufferman *bufferman) {
 	for (int i = 0; i < NWL_SHM_BUFFERMAN_MAX_BUFFERS; i++) {
 		if (bufferman->buffers[i].wl_buffer) {
-			destroy_buffer(&bufferman->buffers[i], bufferman);
+			destroy_buffer(i, bufferman);
 		}
 	}
 	nwl_shm_pool_finish(&bufferman->pool);

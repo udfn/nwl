@@ -21,7 +21,6 @@ enum nwl_shm_buffer_flags {
 struct nwl_shm_buffer {
 	struct wl_buffer *wl_buffer;
 	uint8_t *bufferdata;
-	void *data;
 	char flags; // nwl_shm_buffer_flags
 };
 
@@ -39,8 +38,8 @@ struct nwl_shm_bufferman {
 };
 
 struct nwl_shm_bufferman_renderer_impl {
-	void (*buffer_create)(struct nwl_shm_buffer *buffer, struct nwl_shm_bufferman *bufferman);
-	void (*buffer_destroy)(struct nwl_shm_buffer *buffer, struct nwl_shm_bufferman *bufferman);
+	void (*buffer_create)(unsigned int buffer_idx, struct nwl_shm_bufferman *bufferman);
+	void (*buffer_destroy)(unsigned int buffer_idx, struct nwl_shm_bufferman *bufferman);
 };
 
 int nwl_allocate_shm_file(size_t size);
@@ -48,7 +47,9 @@ void nwl_shm_set_size(struct nwl_shm_pool *shm, struct nwl_state *state, size_t 
 void nwl_shm_pool_finish(struct nwl_shm_pool *shm);
 void nwl_shm_destroy(struct nwl_shm_pool *shm);
 
-struct nwl_shm_buffer *nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman);
+// returns the buffer index, or -1 if there is no available buffer
+int nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman);
+
 // format is enum wl_shm_format
 void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bufferman, struct nwl_state *state,
 	uint32_t width, uint32_t height, uint32_t stride, uint32_t format);
