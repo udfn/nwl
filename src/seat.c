@@ -121,6 +121,9 @@ static void handle_keyboard_enter(
 	UNUSED(wl_keyboard);
 	UNUSED(keys);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
+	if (!surface) {
+		return;
+	}
 	seat->keyboard_focus = wl_surface_get_user_data(surface);
 	seat->keyboard_event->serial = serial;
 	seat->keyboard_event->focus = true;
@@ -327,6 +330,9 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 
 static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
 	UNUSED(pointer);
+	if (!surface) {
+		return;
+	}
 	struct nwl_seat *seat = data;
 	struct nwl_surface *nwlsurf = wl_surface_get_user_data(surface);
 	seat->pointer_focus = nwlsurf;
