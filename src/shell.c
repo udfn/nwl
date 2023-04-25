@@ -145,7 +145,7 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 static void handle_popup_configure(void *data, struct xdg_popup *xdg_popup, int32_t x, int32_t y, int32_t width, int32_t height) {
 	UNUSED(xdg_popup);
 	struct nwl_surface *surf = data;
-	if (surf->width != (uint32_t)width && surf->height != (uint32_t)height) {
+	if (surf->width != (uint32_t)width || surf->height != (uint32_t)height) {
 		surf->width = width;
 		surf->height = height;
 		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
