@@ -81,7 +81,6 @@ struct nwl_surface {
 	struct {
 		struct wl_surface *surface;
 		struct xdg_surface *xdg_surface;
-		struct wp_viewport *viewport;
 		struct wl_callback *frame_cb;
 	} wl;
 	struct nwl_renderer render;
@@ -138,7 +137,6 @@ struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *titl
 void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title);
 void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
-bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height);
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height);
 void nwl_surface_set_title(struct nwl_surface *surface, const char *title);
 void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y);

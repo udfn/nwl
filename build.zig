@@ -213,7 +213,6 @@ pub fn build(b: *std.build.Builder) !void {
     });
     scannerstep.linkWith(nwl);
     scannerstep.addSystemProtocols(&.{
-        "stable/viewporter/viewporter.xml",
         "stable/xdg-shell/xdg-shell.xml",
         "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",
         "unstable/xdg-output/xdg-output-unstable-v1.xml"

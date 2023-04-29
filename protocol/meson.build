@@ -3,7 +3,6 @@ proto_dir = wayland_protocols.get_pkgconfig_variable('pkgdatadir')
 wlscanner = find_program('wayland-scanner')
 # This needs to be done better..
 protos = [
-	proto_dir + '/stable/viewporter/viewporter.xml',
 	proto_dir + '/stable/xdg-shell/xdg-shell.xml',
 	proto_dir + '/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml',
 	proto_dir + '/unstable/xdg-output/xdg-output-unstable-v1.xml',

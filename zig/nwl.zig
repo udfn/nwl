@@ -68,7 +68,6 @@ pub const XdgWmBase = WaylandObject("xdg_wm_base");
 pub const ZxdgOutputManagerV1 = WaylandObject("zxdg_output_manager_v1");
 pub const ZwlrLayerShellV1 = WaylandObject("zwlr_layer_shell_v1");
 pub const ZxdgDecorationManagerV1 = WaylandObject("zxdg_decoration_manager_v1");
-pub const WpViewporter = WaylandObject("wp_viewporter");
 pub const WlSubcompositor = WaylandObject("wl_subcompositor");
 pub const WlDataDeviceManager = WaylandObject("wl_data_device_manager");
 pub const WlBuffer = WaylandObject("wl_buffer");
@@ -87,7 +86,6 @@ pub const WlSurface = WaylandObject("wl_surface");
 pub const WlTouch = WaylandObject("wl_touch");
 pub const XdgSurface = WaylandObject("xdg_surface");
 pub const ZxdgToplevelDecorationV1 = WaylandObject("zxdg_toplevel_decoration_v1");
-pub const WpViewport = WaylandObject("wp_viewport");
 pub const XdgPositioner = WaylandObject("xdg_positioner");
 
 pub const XdgToplevel = WaylandObject("xdg_toplevel");
@@ -412,7 +410,6 @@ pub const Surface = extern struct {
     wl: extern struct {
         surface: *WlSurface,
         xdg_surface: ?*XdgSurface,
-        viewport: ?*WpViewport,
         frame_cb: ?*WlCallback,
     } = undefined,
     renderer: Renderer = .{},
@@ -440,7 +437,6 @@ pub const Surface = extern struct {
     userdata: ?*anyopaque = undefined,
     extern fn nwl_surface_destroy(surface: *Surface) void;
     extern fn nwl_surface_destroy_later(surface: *Surface) void;
-    extern fn nwl_surface_set_vp_destination(surface: *Surface, width: i32, height: i32) bool;
     extern fn nwl_surface_set_size(surface: *Surface, width: u32, height: u32) void;
     extern fn nwl_surface_set_title(surface: *Surface, title:?[*:0]const u8) void;
     extern fn nwl_surface_swapbuffers(surface: *Surface, x: i32, y: i32) void;
@@ -483,7 +479,6 @@ pub const Surface = extern struct {
     pub const setSize = nwl_surface_set_size;
     pub const render = nwl_surface_render;
     pub const setTitle = nwl_surface_set_title;
-    pub const setVpDestination = nwl_surface_set_vp_destination;
     pub fn swapBuffers(self: *Surface, x: i32, y: i32) void {
         nwl_surface_swapbuffers(self, x, y);
     }
@@ -518,7 +513,6 @@ pub const State = extern struct {
         xdg_output_manager: ?*ZxdgOutputManagerV1 = null,
         layer_shell: ?*ZwlrLayerShellV1 = null,
         decoration: ?*ZxdgDecorationManagerV1 = null,
-        viewporter: ?*WpViewporter = null,
         subcompositor: ?*WlSubcompositor = null,
         data_device_manager: ?*WlDataDeviceManager = null,
     } = .{},

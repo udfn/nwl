@@ -16,7 +16,6 @@
 #include "xdg-shell.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-output-unstable-v1.h"
-#include "viewporter.h"
 
 struct nwl_poll {
 	int epfd;
@@ -242,8 +241,6 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 	} else if (strcmp(interface, wl_output_interface.name) == 0) {
 		struct wl_output *newoutput = nwl_registry_bind(reg, name, &wl_output_interface, version, 4);
 		nwl_output_create(newoutput, state, name);
-	} else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
-		state->wl.viewporter = nwl_registry_bind(reg, name, &wp_viewporter_interface, version, 1);
 	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
 		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version, 1);
 	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
@@ -496,9 +493,6 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	}
 	if (state->wl.shm) {
 		wl_shm_destroy(state->wl.shm);
-	}
-	if (state->wl.viewporter) {
-		wp_viewporter_destroy(state->wl.viewporter);
 	}
 	if (state->wl.xdg_output_manager) {
 		zxdg_output_manager_v1_destroy(state->wl.xdg_output_manager);

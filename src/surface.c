@@ -5,7 +5,6 @@
 #include "wlr-layer-shell-unstable-v1.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-shell.h"
-#include "viewporter.h"
 #include "nwl/nwl.h"
 #include "nwl/config.h"
 #include "nwl/surface.h"
@@ -139,7 +138,6 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	surface->frame = 0;
 	surface->wl.surface = NULL;
 	surface->wl.xdg_surface = NULL;
-	surface->wl.viewport = NULL;
 	surface->wl.frame_cb = NULL;
 	surface->outputs.amount = 0;
 	surface->outputs.outputs = NULL;
@@ -207,9 +205,6 @@ static void nwl_surface_destroy_role(struct nwl_surface *surface) {
 	} else if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
 		wl_subsurface_destroy(surface->role.subsurface.wl);
 	}
-	if (surface->wl.viewport) {
-		wp_viewport_destroy(surface->wl.viewport);
-	}
 	if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL ||
 			surface->role_id == NWL_SURFACE_ROLE_LAYER) {
 		surface->state->num_surfaces--;
@@ -259,17 +254,6 @@ void nwl_surface_destroy_later(struct nwl_surface *surface) {
 		surface->wl.frame_cb = NULL;
 	}
 	surface_mark_dirty(surface);
-}
-
-bool nwl_surface_set_vp_destination(struct nwl_surface *surface, int32_t width, int32_t height) {
-	if (!surface->state->wl.viewporter) {
-		return false;
-	}
-	if (!surface->wl.viewport) {
-		surface->wl.viewport = wp_viewporter_get_viewport(surface->state->wl.viewporter, surface->wl.surface);
-	}
-	wp_viewport_set_destination(surface->wl.viewport, width, height);
-	return true;
 }
 
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height) {

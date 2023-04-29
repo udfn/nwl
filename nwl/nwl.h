@@ -48,7 +48,6 @@ struct nwl_state {
 		struct zxdg_output_manager_v1 *xdg_output_manager;
 		struct zwlr_layer_shell_v1 *layer_shell;
 		struct zxdg_decoration_manager_v1 *decoration;
-		struct wp_viewporter *viewporter;
 		struct wl_subcompositor *subcompositor;
 		struct wl_data_device_manager *data_device_manager;
 	} wl;

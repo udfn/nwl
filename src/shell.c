@@ -1,7 +1,6 @@
 #include "wlr-layer-shell-unstable-v1.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-shell.h"
-#include "viewporter.h"
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
 
