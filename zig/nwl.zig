@@ -317,10 +317,15 @@ pub const CairoSurface = extern struct {
     const cairo_surface_t = opaque {};
     const cairo_t = opaque {};
     ctx:*cairo_t,
-    surface:*cairo_surface_t
+    surface:*cairo_surface_t,
+    rerender:bool,
 };
 const nwl_surface_cairo_render_t = *const fn (*Surface, *CairoSurface) callconv(.C) void;
-extern fn nwl_surface_renderer_cairo(surface: *Surface, renderfunc: nwl_surface_cairo_render_t, flags: i32) void;
+const CairoRendererFlags = packed struct(c_int) {
+    damage_tracking:bool = false,
+    _pad:i31 = 0
+};
+extern fn nwl_surface_renderer_cairo(surface: *Surface, renderfunc: nwl_surface_cairo_render_t, flags: CairoRendererFlags) void;
 pub const surfaceRendererCairo = nwl_surface_renderer_cairo;
 
 extern fn wl_proxy_marshal(p: ?*WlProxy, opcode: u32, ...) void;
