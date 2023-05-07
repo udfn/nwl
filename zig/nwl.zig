@@ -109,11 +109,10 @@ pub const Output = extern struct {
     name: ?[*:0]u8,
 };
 pub const StateSubImpl = extern struct {
-    destroy: ?*const fn (?*anyopaque) callconv(.C) void,
+    destroy: ?*const fn (*StateSub) callconv(.C) void,
 };
 pub const StateSub = extern struct {
     link: WlList,
-    data: ?*anyopaque,
     impl: *StateSubImpl,
 };
 
@@ -543,8 +542,8 @@ pub const State = extern struct {
     extern fn nwl_wayland_uninit(state: *State) void;
     extern fn nwl_wayland_run(state: *State) void;
     extern fn nwl_surface_create(state: *State, title: [*:0]const u8) ?*Surface;
-    extern fn nwl_state_add_sub(state: *State, subimpl: *StateSubImpl, data: ?*anyopaque) void;
-    extern fn nwl_state_get_sub(state: *State, subimpl: *StateSubImpl) ?*anyopaque;
+    extern fn nwl_state_add_sub(state: *State, sub: *StateSub) void;
+    extern fn nwl_state_get_sub(state: *State, impl: *StateSubImpl) ?*StateSub;
     extern fn nwl_poll_add_fd(state: *State, fd: c_int, callback: PollCallbackFn, data: ?*anyopaque) void;
     extern fn nwl_poll_del_fd(state: *State, fd: c_int) void;
     extern fn nwl_poll_get_fd(state: *State) std.os.fd_t;

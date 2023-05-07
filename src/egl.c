@@ -26,10 +26,10 @@ static void nwl_egl_uninit(struct nwl_egl_data *egl) {
 	egl->display = NULL;
 }
 
-static void egl_sub_destroy(void *data) {
-	struct nwl_egl_data *egl = data;
+static void egl_sub_destroy(struct nwl_state_sub *sub) {
+	struct nwl_egl_data *egl = wl_container_of(sub, egl, sub);
 	nwl_egl_uninit(egl);
-	free(data);
+	free(egl);
 }
 
 static const struct nwl_state_sub_impl egl_subimpl = {
@@ -124,10 +124,14 @@ bool nwl_egl_surface_create_context(struct nwl_egl_surface *egl) {
 }
 
 struct nwl_egl_surface *nwl_egl_surface_create(struct nwl_state *state) {
-	struct nwl_egl_data *egl = nwl_state_get_sub(state, &egl_subimpl);
-	if (!egl) {
+	struct nwl_state_sub *sub = nwl_state_get_sub(state, &egl_subimpl);
+	struct nwl_egl_data *egl = NULL;
+	if (!sub) {
 		egl = calloc(1, sizeof(struct nwl_egl_data));
-		nwl_state_add_sub(state, &egl_subimpl, egl);
+		egl->sub.impl = &egl_subimpl;
+		nwl_state_add_sub(state, &egl->sub);
+	} else {
+		egl = wl_container_of(sub, egl, sub);
 	}
 	if (egl->inited == 2) {
 		return NULL;

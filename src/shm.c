@@ -150,15 +150,16 @@ void nwl_shm_bufferman_finish(struct nwl_shm_bufferman *bufferman) {
 }
 
 struct nwl_shm_state_sub {
+	struct nwl_state_sub nwlsub;
 	uint32_t *formats;
 	uint32_t len;
 	uint32_t alloc_len;
 };
 
-static void shm_sub_destroy(void *data) {
-	struct nwl_shm_state_sub *sub = data;
-	free(sub->formats);
-	free(sub);
+static void shm_sub_destroy(struct nwl_state_sub *sub) {
+	struct nwl_shm_state_sub *shmsub = wl_container_of(sub, shmsub, nwlsub);
+	free(shmsub->formats);
+	free(shmsub);
 }
 
 static const struct nwl_state_sub_impl shm_subimpl = {
@@ -182,14 +183,16 @@ static const struct wl_shm_listener shm_listener = {
 };
 
 void nwl_shm_add_listener(struct nwl_state *state) {
-	void *sub = calloc(sizeof(struct nwl_shm_state_sub), 1);
+	struct nwl_shm_state_sub *sub = calloc(sizeof(struct nwl_shm_state_sub), 1);
+	sub->nwlsub.impl = &shm_subimpl;
 	wl_shm_add_listener(state->wl.shm, &shm_listener, sub);
-	nwl_state_add_sub(state, &shm_subimpl, sub);
+	nwl_state_add_sub(state, &sub->nwlsub);
 }
 
 void nwl_shm_get_supported_formats(struct nwl_state *state, uint32_t **formats, uint32_t *len) {
-	struct nwl_shm_state_sub *sub = nwl_state_get_sub(state, &shm_subimpl);
-	if (sub) {
+	struct nwl_state_sub *nwlsub = nwl_state_get_sub(state, &shm_subimpl);
+	if (nwlsub) {
+		struct nwl_shm_state_sub *sub = wl_container_of(nwlsub, sub, nwlsub);
 		*len = sub->len;
 		*formats = sub->formats;
 	}

@@ -27,15 +27,15 @@ struct nwl_output {
 	char *name;
 	char *description;
 };
-// Need a better name for these
-struct nwl_state_sub_impl {
-	void (*destroy)(void *data);
-};
 
+// Need a better name for these
 struct nwl_state_sub {
 	struct wl_list link;
-	void *data;
 	const struct nwl_state_sub_impl *impl;
+};
+
+struct nwl_state_sub_impl {
+	void (*destroy)(struct nwl_state_sub *sub);
 };
 
 struct nwl_state {
@@ -83,8 +83,8 @@ typedef void (*nwl_poll_callback_t)(struct nwl_state *state, void* data);
 char nwl_wayland_init(struct nwl_state *state);
 void nwl_wayland_uninit(struct nwl_state *state);
 void nwl_wayland_run(struct nwl_state *state);
-void nwl_state_add_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl, void *data);
-void *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl);
+void nwl_state_add_sub(struct nwl_state *state, struct nwl_state_sub *sub);
+struct nwl_state_sub *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl);
 void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge trigger, etc?
 	nwl_poll_callback_t callback, void *data);
 bool nwl_poll_dispatch(struct nwl_state *state, int timeout);

@@ -460,9 +460,8 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	}
 	struct nwl_state_sub *sub, *subtmp;
 	wl_list_for_each_safe(sub, subtmp, &state->subs, link) {
-		sub->impl->destroy(sub->data);
 		wl_list_remove(&sub->link);
-		free(sub);
+		sub->impl->destroy(sub);
 	}
 	struct nwl_global *glob, *globtmp;
 	wl_list_for_each_safe(glob, globtmp, &state->globals, link) {
@@ -509,18 +508,16 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 }
 
 // These should be moved into state.c or something..
-void *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl) {
+struct nwl_state_sub *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl) {
 	struct nwl_state_sub *sub;
 	wl_list_for_each(sub, &state->subs, link) {
 		if (sub->impl == subimpl) {
-			return sub->data;
+			return sub;
 		}
 	}
 	return NULL; // EVIL NULL POINTER!
 }
-void nwl_state_add_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl, void *data) {
-	struct nwl_state_sub *sub = calloc(1, sizeof(struct nwl_state_sub));
-	sub->data = data;
-	sub->impl = subimpl;
+
+void nwl_state_add_sub(struct nwl_state *state, struct nwl_state_sub *sub) {
 	wl_list_insert(&state->subs, &sub->link);
 }

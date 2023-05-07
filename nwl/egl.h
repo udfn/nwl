@@ -2,11 +2,12 @@
 #define _NWL_EGL_H_
 #include <stdbool.h>
 #include <EGL/egl.h>
+#include "nwl.h"
 
-struct nwl_state;
 struct nwl_surface;
 
 struct nwl_egl_data {
+	struct nwl_state_sub sub;
 	EGLDisplay display;
 	EGLConfig config;
 	EGLContext context;
