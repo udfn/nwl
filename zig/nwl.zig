@@ -258,23 +258,26 @@ const PointerSurface = extern struct {
 };
 
 pub const Seat = extern struct {
-    const XkbKeymap = opaque {};
-    const XkbState = opaque {};
-    const XkbComposeState = opaque {};
-    const XkbComposeTable = opaque {};
+    const KeymapXkb = extern struct {
+        const XkbKeymap = opaque {};
+        const XkbState = opaque {};
+        const XkbComposeState = opaque {};
+        const XkbComposeTable = opaque {};
+
+        keyboard_keymap: ?*XkbKeymap,
+        keyboard_state: ?*XkbState,
+        keyboard_compose_state: ?*XkbComposeState,
+        keyboard_compose_table: ?*XkbComposeTable,
+    };
 
     state: *State,
     link: WlList,
     wl_seat: *WlSeat,
     data_device: DataDevice,
     keyboard: ?*WlKeyboard,
-    keyboard_keymap: ?*XkbKeymap,
-    keyboard_state: ?*XkbState,
-    keyboard_context: ?*XkbContext,
+    keyboard_xkb: KeymapXkb,
     keyboard_compose_enabled: bool,
     keyboard_repeat_enabled: bool,
-    keyboard_compose_state: ?*XkbComposeState,
-    keyboard_compose_table: ?*XkbComposeTable,
     keyboard_focus: ?*Surface,
     keyboard_repeat_rate: i32,
     keyboard_repeat_delay: i32,

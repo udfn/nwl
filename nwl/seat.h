@@ -33,6 +33,13 @@ struct nwl_dnd_event {
 	uint32_t action; // chosen by compositor
 };
 
+struct nwl_seat_keymap_xkb {
+	struct xkb_keymap *keymap;
+	struct xkb_state *state;
+	struct xkb_compose_state *compose_state;
+	struct xkb_compose_table *compose_table;
+};
+
 struct nwl_seat {
 	struct nwl_state *state;
 	struct wl_list link;
@@ -44,15 +51,10 @@ struct nwl_seat {
 		struct nwl_data_offer incoming; // before it says whether it's dnd or selection
 		struct nwl_dnd_event event;
 	} data_device;
-
 	struct wl_keyboard *keyboard;
-	struct xkb_keymap *keyboard_keymap;
-	struct xkb_state *keyboard_state;
-	struct xkb_context *keyboard_context;
+	struct nwl_seat_keymap_xkb keyboard_xkb;
 	bool keyboard_compose_enabled; // Recommended when typing! Maybe move this to surface?
 	bool keyboard_repeat_enabled;
-	struct xkb_compose_state *keyboard_compose_state;
-	struct xkb_compose_table *keyboard_compose_table;
 	struct nwl_surface *keyboard_focus;
 	int32_t keyboard_repeat_rate;
 	int32_t keyboard_repeat_delay;

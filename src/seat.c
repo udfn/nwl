@@ -24,10 +24,53 @@ static const char *get_env_locale() {
 	return "C";
 }
 
+struct nwl_xkb_context {
+	struct nwl_state_sub sub;
+	struct xkb_context *ctx;
+};
+
+static void xkb_context_sub_destroy(struct nwl_state_sub *sub) {
+	struct nwl_xkb_context *xkbsub = wl_container_of(sub, xkbsub, sub);
+	xkb_context_unref(xkbsub->ctx);
+	free(xkbsub);
+}
+
+static const struct nwl_state_sub_impl xkb_context_sub_impl = {
+	xkb_context_sub_destroy
+};
+
+static struct xkb_context *get_xkb_context(struct nwl_state *state) {
+	struct nwl_state_sub *exist = nwl_state_get_sub(state, &xkb_context_sub_impl);
+	if (exist) {
+		struct nwl_xkb_context *xkbsub = wl_container_of(exist, xkbsub, sub);
+		return xkbsub->ctx;
+	}
+	struct nwl_xkb_context *xkbsub = malloc(sizeof(struct nwl_xkb_context));
+	xkbsub->ctx = xkb_context_new(0);
+	xkbsub->sub.impl = &xkb_context_sub_impl;
+	nwl_state_add_sub(state, &xkbsub->sub);
+	return xkbsub->ctx;
+}
+
+static void unref_seat_xkb(struct nwl_seat *seat) {
+	if (seat->keyboard_xkb.keymap) {
+		xkb_state_unref(seat->keyboard_xkb.state);
+		xkb_keymap_unref(seat->keyboard_xkb.keymap);
+	}
+	if (seat->keyboard_xkb.compose_state) {
+		xkb_compose_state_unref(seat->keyboard_xkb.compose_state);
+	}
+	if (seat->keyboard_xkb.compose_table) {
+		xkb_compose_table_unref(seat->keyboard_xkb.compose_table);
+	}
+	seat->keyboard_xkb = (struct nwl_seat_keymap_xkb){0};
+}
+
 static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, uint32_t format,
 		int32_t fd, uint32_t size) {
 	UNUSED(wl_keyboard);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
+	unref_seat_xkb(seat);
 	if (format == WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP) {
 		return;
 	}
@@ -37,26 +80,19 @@ static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, 
 		return;
 	}
 	char *kbmap = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (seat->keyboard_keymap) {
-		xkb_keymap_unref(seat->keyboard_keymap);
-		xkb_state_unref(seat->keyboard_state);
-	}
-	if (seat->keyboard_compose_state) {
-		xkb_compose_state_unref(seat->keyboard_compose_state);
-	}
-	if (seat->keyboard_compose_table) {
-		xkb_compose_table_unref(seat->keyboard_compose_table);
-	}
-	seat->keyboard_keymap = xkb_keymap_new_from_string(seat->keyboard_context, kbmap,
+	struct xkb_context *context = get_xkb_context(seat->state);
+	// -1 to remove the null termination
+	seat->keyboard_xkb.keymap = xkb_keymap_new_from_buffer(context, kbmap, size-1,
 		XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
-	seat->keyboard_state = xkb_state_new(seat->keyboard_keymap);
 	munmap(kbmap, size);
 	close(fd);
 
-	seat->keyboard_compose_table = xkb_compose_table_new_from_locale(seat->keyboard_context,
+	seat->keyboard_xkb.state = xkb_state_new(seat->keyboard_xkb.keymap);
+
+	seat->keyboard_xkb.compose_table = xkb_compose_table_new_from_locale(context,
 		get_env_locale(), 0);
-	if (seat->keyboard_compose_table) {
-		seat->keyboard_compose_state = xkb_compose_state_new(seat->keyboard_compose_table, XKB_COMPOSE_STATE_NO_FLAGS);
+	if (seat->keyboard_xkb.compose_table) {
+		seat->keyboard_xkb.compose_state = xkb_compose_state_new(seat->keyboard_xkb.compose_table, XKB_COMPOSE_STATE_NO_FLAGS);
 	}
 }
 
@@ -70,20 +106,20 @@ static void dispatch_keyboard_event(struct nwl_seat *seat) {
 
 static void update_keyboard_event_compose(struct nwl_seat *seat) {
 	struct nwl_keyboard_event *event = seat->keyboard_event;
-	if (xkb_compose_state_feed(seat->keyboard_compose_state, event->keysym) == XKB_COMPOSE_FEED_ACCEPTED) {
-		char status = xkb_compose_state_get_status(seat->keyboard_compose_state);
+	if (xkb_compose_state_feed(seat->keyboard_xkb.compose_state, event->keysym) == XKB_COMPOSE_FEED_ACCEPTED) {
+		char status = xkb_compose_state_get_status(seat->keyboard_xkb.compose_state);
 		switch (status) {
 			case XKB_COMPOSE_COMPOSING:
 				event->compose_state = NWL_KEYBOARD_COMPOSE_COMPOSING;
 				break;
 			case XKB_COMPOSE_COMPOSED:
 				event->compose_state = NWL_KEYBOARD_COMPOSE_COMPOSED;
-				event->keysym = xkb_compose_state_get_one_sym(seat->keyboard_compose_state);
-				xkb_compose_state_get_utf8(seat->keyboard_compose_state, event->utf8, 16);
-				xkb_compose_state_reset(seat->keyboard_compose_state);
+				event->keysym = xkb_compose_state_get_one_sym(seat->keyboard_xkb.compose_state);
+				xkb_compose_state_get_utf8(seat->keyboard_xkb.compose_state, event->utf8, 16);
+				xkb_compose_state_reset(seat->keyboard_xkb.compose_state);
 				break;
 			case XKB_COMPOSE_CANCELLED:
-				xkb_compose_state_reset(seat->keyboard_compose_state);
+				xkb_compose_state_reset(seat->keyboard_xkb.compose_state);
 				// fallthrough
 			default:
 				event->compose_state = NWL_KEYBOARD_COMPOSE_NONE;
@@ -103,9 +139,9 @@ static void nwl_seat_send_key_repeat(struct nwl_state *state, void *data) {
 	}
 	if (seat->keyboard_focus) {
 		seat->keyboard_event->type = NWL_KEYBOARD_EVENT_KEYREPEAT;
-		if (seat->keyboard_compose_enabled) {
+		if (seat->keyboard_compose_enabled && seat->keyboard_xkb.compose_state) {
 			// Getting the sym here so the repeats go through the proper compose process
-			seat->keyboard_event->keysym = xkb_state_key_get_one_sym(seat->keyboard_state, seat->keyboard_event->keycode);
+			seat->keyboard_event->keysym = xkb_state_key_get_one_sym(seat->keyboard_xkb.state, seat->keyboard_event->keycode);
 			update_keyboard_event_compose(seat);
 		}
 		dispatch_keyboard_event(seat);
@@ -167,23 +203,29 @@ static void handle_keyboard_key(
 	}
 	struct nwl_keyboard_event *event = seat->keyboard_event;
 	event->keycode = key+8;
-	event->keysym = xkb_state_key_get_one_sym(seat->keyboard_state, event->keycode);
+	if (seat->keyboard_xkb.state) {
+		event->keysym = xkb_state_key_get_one_sym(seat->keyboard_xkb.state, event->keycode);
+	}
 	if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		event->type = NWL_KEYBOARD_EVENT_KEYDOWN;
-		if (seat->keyboard_compose_state && seat->keyboard_compose_enabled) {
-			update_keyboard_event_compose(seat);
-		} else {
-			event->compose_state = NWL_KEYBOARD_COMPOSE_NONE;
-		}
-		if (event->compose_state != NWL_KEYBOARD_COMPOSE_COMPOSED) {
-			xkb_state_key_get_utf8(seat->keyboard_state, event->keycode, event->utf8, 16);
+		if (seat->keyboard_xkb.state) {
+			if (seat->keyboard_xkb.compose_state && seat->keyboard_compose_enabled) {
+				update_keyboard_event_compose(seat);
+			} else {
+				event->compose_state = NWL_KEYBOARD_COMPOSE_NONE;
+			}
+			if (event->compose_state != NWL_KEYBOARD_COMPOSE_COMPOSED) {
+				xkb_state_key_get_utf8(seat->keyboard_xkb.state, event->keycode, event->utf8, 16);
+			}
 		}
 	} else {
 		event->type = NWL_KEYBOARD_EVENT_KEYUP;
 	}
 	event->serial = serial;
 	dispatch_keyboard_event(seat);
-	if (seat->keyboard_repeat_enabled) {
+	if (seat->keyboard_repeat_enabled && seat->keyboard_repeat_delay > 0 &&
+			(seat->keyboard_xkb.keymap == NULL ||
+			xkb_keymap_key_repeats(seat->keyboard_xkb.keymap, event->keycode))) {
 		struct itimerspec timer = { 0 };
 		if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 			timer.it_value.tv_nsec = seat->keyboard_repeat_delay * 1000000;
@@ -203,7 +245,9 @@ static void handle_keyboard_modifiers(
 		uint32_t group) {
 	UNUSED(wl_keyboard);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
-	xkb_state_update_mask(seat->keyboard_state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
+	if (seat->keyboard_xkb.state) {
+		xkb_state_update_mask(seat->keyboard_xkb.state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
+	}
 	seat->keyboard_event->serial = serial;
 }
 
@@ -216,6 +260,10 @@ static void handle_keyboard_repeat(
 	struct nwl_seat *seat = (struct nwl_seat*)data;
 	seat->keyboard_repeat_rate = rate;
 	seat->keyboard_repeat_delay = delay;
+	if (seat->keyboard_repeat_fd == -1) {
+		seat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+		nwl_poll_add_fd(seat->state, seat->keyboard_repeat_fd, nwl_seat_send_key_repeat, seat);
+	}
 }
 
 static const struct wl_keyboard_listener keyboard_listener = {
@@ -591,24 +639,14 @@ static const struct wl_touch_listener touch_listener = {
 */
 
 static void seat_release_keyboard(struct nwl_seat *seat) {
-	nwl_poll_del_fd(seat->state, seat->keyboard_repeat_fd);
 	free(seat->keyboard_event);
-	close(seat->keyboard_repeat_fd);
-	xkb_context_unref(seat->keyboard_context);
 	wl_keyboard_release(seat->keyboard);
-	if (seat->keyboard_keymap) {
-		xkb_keymap_unref(seat->keyboard_keymap);
-		seat->keyboard_keymap = NULL;
+	if (seat->keyboard_repeat_fd != -1) {
+		nwl_poll_del_fd(seat->state, seat->keyboard_repeat_fd);
+		close(seat->keyboard_repeat_fd);
+		seat->keyboard_repeat_fd = -1;
 	}
-	if (seat->keyboard_state) {
-		xkb_state_unref(seat->keyboard_state);
-		seat->keyboard_state = NULL;
-	}
-	if (seat->keyboard_compose_state) {
-		xkb_compose_state_unref(seat->keyboard_compose_state);
-		xkb_compose_table_unref(seat->keyboard_compose_table);
-		seat->keyboard_compose_state = NULL;
-	}
+	unref_seat_xkb(seat);
 	seat->keyboard = NULL;
 }
 
@@ -627,10 +665,7 @@ static void handle_seat_capabilities(void *data, struct wl_seat *seat, uint32_t 
 	if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD) {
 		if (!nwseat->keyboard) {
 			nwseat->keyboard = wl_seat_get_keyboard(seat);
-			nwseat->keyboard_context = xkb_context_new(0);
 			nwseat->keyboard_event = calloc(1, sizeof(struct nwl_keyboard_event));
-			nwseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-			nwl_poll_add_fd(nwseat->state, nwseat->keyboard_repeat_fd, nwl_seat_send_key_repeat, nwseat);
 			wl_keyboard_add_listener(nwseat->keyboard, &keyboard_listener, data);
 		}
 	} else if (nwseat->keyboard) {
@@ -866,6 +901,8 @@ void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t n
 	struct nwl_seat *nwlseat = calloc(1, sizeof(struct nwl_seat));
 	nwlseat->state = state;
 	nwlseat->wl_seat = wlseat;
+	nwlseat->keyboard_repeat_fd = -1;
+
 	wl_list_insert(&state->seats, &nwlseat->link);
 	wl_seat_add_listener(wlseat, &seat_listener, nwlseat);
 	struct nwl_global *glob = calloc(1, sizeof(struct nwl_global));
