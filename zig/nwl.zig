@@ -441,7 +441,6 @@ pub const Surface = extern struct {
     role: RoleUnion = undefined,
     frame: u32 = 0,
     impl: SurfaceImpl = .{},
-    userdata: ?*anyopaque = undefined,
     extern fn nwl_surface_destroy(surface: *Surface) void;
     extern fn nwl_surface_destroy_later(surface: *Surface) void;
     extern fn nwl_surface_set_size(surface: *Surface, width: u32, height: u32) void;
@@ -502,11 +501,6 @@ pub const Surface = extern struct {
         nwl_surface_role_unset(self);
     }
     pub const init = nwl_surface_init;
-
-    /// Convenience function for casting userdata.
-    pub inline fn castData(self: *const Surface, comptime datatype: type) *datatype {
-        return @ptrCast(*datatype, @alignCast(@alignOf(datatype), self.userdata));
-    }
 };
 
 pub const State = extern struct {

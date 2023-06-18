@@ -130,7 +130,6 @@ struct nwl_surface {
 		nwl_surface_configure_t configure;
 		void (*close)(struct nwl_surface *surface);
 	} impl;
-	void *userdata;
 };
 
 struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title);
