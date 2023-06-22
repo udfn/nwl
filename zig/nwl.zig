@@ -17,17 +17,17 @@ pub const Global = extern struct {
 
 /// CamelCasify a Wayland object name, to match zig-wayland
 const WlObjectNamer = struct {
-    fn doWrite(name:[]const u8, writer:anytype) !void {
+    fn doWrite(name: []const u8, writer: anytype) !void {
         var tok = std.mem.tokenize(u8, name, "_");
         while (tok.next()) |t| {
             try writer.writeByte(std.ascii.toUpper(t[0]));
             try writer.writeAll(t[1..]);
         }
     }
-    pub fn casify(comptime name:[]const u8) []const u8 {
+    pub fn casify(comptime name: []const u8) []const u8 {
         var cw = std.io.countingWriter(std.io.null_writer);
         WlObjectNamer.doWrite(name, cw.writer()) catch unreachable;
-        var buf:[cw.bytes_written]u8 = undefined;
+        var buf: [cw.bytes_written]u8 = undefined;
         var stream = std.io.fixedBufferStream(buf[0..]);
         WlObjectNamer.doWrite(name, stream.writer()) catch unreachable;
         return buf[0..];
@@ -35,7 +35,7 @@ const WlObjectNamer = struct {
 };
 
 /// Make a Wayland type, either a opaque or zig-wayland type
-fn WaylandObject(comptime name:[]const u8) type {
+fn WaylandObject(comptime name: []const u8) type {
     const root = @import("root");
     if (@hasDecl(root, "wayland")) {
         const client = root.wayland.client;
@@ -44,13 +44,12 @@ fn WaylandObject(comptime name:[]const u8) type {
             const prefix = name[0..d];
             if (@hasDecl(client, prefix)) {
                 const sub = @field(client, prefix);
-                const camelname = WlObjectNamer.casify(name[d+1..]);
+                const camelname = WlObjectNamer.casify(name[d + 1 ..]);
                 if (@hasDecl(sub, camelname)) {
                     return @field(sub, camelname);
                 }
             }
-        }
-        else if (@hasDecl(client, name)) {
+        } else if (@hasDecl(client, name)) {
             return @field(client, name);
         }
     }
@@ -122,7 +121,7 @@ pub const WlList = extern struct {
     next: *WlList = undefined,
 };
 
-pub fn WlListHead(comptime linktype:type, comptime field: std.meta.FieldEnum(linktype)) type {
+pub fn WlListHead(comptime linktype: type, comptime field: std.meta.FieldEnum(linktype)) type {
     const tinfo = @typeInfo(linktype);
     if (tinfo != .Struct) {
         @compileError("expected struct, got " ++ .{@typeName(linktype)});
@@ -131,14 +130,14 @@ pub fn WlListHead(comptime linktype:type, comptime field: std.meta.FieldEnum(lin
     if (fieldinfo.type != WlList) {
         @compileError(fieldinfo.name ++ " is a " ++ @typeName(fieldinfo.type) ++ ", not a WlList!");
     }
-    return extern struct{
+    return extern struct {
         prev: *WlList = undefined,
         next: *WlList = undefined,
         const Iterator = struct {
-            this:*WlList,
-            pos:*WlList,
+            this: *WlList,
+            pos: *WlList,
 
-            pub fn next(it:*Iterator) ?*linktype {
+            pub fn next(it: *Iterator) ?*linktype {
                 if (it.this != it.pos) {
                     const ret = it.pos;
                     it.pos = it.pos.next;
@@ -147,23 +146,20 @@ pub fn WlListHead(comptime linktype:type, comptime field: std.meta.FieldEnum(lin
                 return null;
             }
         };
-        pub fn iterator(self:*@This()) Iterator {
-            return .{
-                .this = @ptrCast(*WlList, self),
-                .pos = self.next
-            };
+        pub fn iterator(self: *@This()) Iterator {
+            return .{ .this = @ptrCast(*WlList, self), .pos = self.next };
         }
     };
 }
 
-fn WlArray(comptime T:type) type {
+fn WlArray(comptime T: type) type {
     return extern struct {
         size: usize,
         alloc: usize,
         data: ?[*]T,
 
-        pub fn slice(self:@This()) []T {
-            return self.data.?[0..self.size/@sizeOf(T)];
+        pub fn slice(self: @This()) []T {
+            return self.data.?[0 .. self.size / @sizeOf(T)];
         }
     };
 }
@@ -171,15 +167,15 @@ fn WlArray(comptime T:type) type {
 pub const WlFixed = enum(i32) {
     _,
     pub fn toDouble(f: WlFixed) f64 {
-        const i = @as(i64, ((1023 + 44) << 52) + (1 << 51)) + @enumToInt(f);
+        const i = @as(i64, ((1023 + 44) << 52) + (1 << 51)) + @intFromEnum(f);
         return @bitCast(f64, i) - (3 << 43);
     }
     pub fn fromDouble(d: f64) WlFixed {
         const i = d + (3 << (51 - 8));
-        return @intToEnum(WlFixed, @bitCast(i64, i));
+        return @enumFromInt(WlFixed, @bitCast(i64, i));
     }
     pub fn toInt(self: WlFixed) c_int {
-        return @divTrunc(@enumToInt(self), @as(c_int, 256));
+        return @divTrunc(@intFromEnum(self), @as(c_int, 256));
     }
     pub fn fromInt(arg_i: c_int) WlFixed {
         return arg_i * @as(c_int, 256);
@@ -218,19 +214,32 @@ pub const KeyboardEvent = extern struct {
 };
 
 pub const PointerEvent = extern struct {
-    const Changed = packed struct(u8) { focus: bool, button: bool, motion: bool, axis: bool, _padding: u4 };
-    const Buttons = packed struct(u8) { left: bool, middle: bool, right: bool, back: bool, forward: bool, _padding: u3 };
+    const Changed = packed struct(u8) {
+        focus: bool,
+        button: bool,
+        motion: bool,
+        axis: bool,
+        _padding: u4,
+    };
+    const Buttons = packed struct(u8) {
+        left: bool,
+        middle: bool,
+        right: bool,
+        back: bool,
+        forward: bool,
+        _padding: u3,
+    };
     const AxisSource = packed struct(u8) {
-        wheel:bool,
-        finger:bool,
-        continuous:bool,
-        wheel_tilt:bool,
-        _pad:u4
+        wheel: bool,
+        finger: bool,
+        continuous: bool,
+        wheel_tilt: bool,
+        _pad: u4,
     };
     const Axis = packed struct(u8) {
-        vertical:bool,
-        horizontal:bool,
-        _pad:u6
+        vertical: bool,
+        horizontal: bool,
+        _pad: u6,
     };
     changed: Changed,
     serial: u32,
@@ -246,7 +255,6 @@ pub const PointerEvent = extern struct {
     axis_stop: Axis,
     focus: bool,
 };
-
 
 const PointerSurface = extern struct {
     const WlCursor = opaque {};
@@ -295,12 +303,7 @@ pub const Seat = extern struct {
 };
 
 pub const DndEvent = extern struct {
-    const EventType = enum(u8) {
-        motion = 0,
-        enter,
-        left,
-        drop
-    };
+    const EventType = enum(u8) { motion = 0, enter, left, drop };
     type: EventType,
     serial: u32,
     focus_surface: ?*Surface,
@@ -318,15 +321,12 @@ pub const DataOffer = extern struct {
 pub const CairoSurface = extern struct {
     const cairo_surface_t = opaque {};
     const cairo_t = opaque {};
-    ctx:*cairo_t,
-    surface:*cairo_surface_t,
-    rerender:bool,
+    ctx: *cairo_t,
+    surface: *cairo_surface_t,
+    rerender: bool,
 };
 const nwl_surface_cairo_render_t = *const fn (*Surface, *CairoSurface) callconv(.C) void;
-const CairoRendererFlags = packed struct(c_int) {
-    damage_tracking:bool = false,
-    _pad:i31 = 0
-};
+const CairoRendererFlags = packed struct(c_int) { damage_tracking: bool = false, _pad: i31 = 0 };
 extern fn nwl_surface_renderer_cairo(surface: *Surface, renderfunc: nwl_surface_cairo_render_t, flags: CairoRendererFlags) void;
 pub const surfaceRendererCairo = nwl_surface_renderer_cairo;
 
@@ -341,7 +341,7 @@ pub const Surface = extern struct {
         no_autoscale: bool = false,
         no_autocursor: bool = false,
         nwl_frees: bool = false,
-        padding: u29 = 0
+        padding: u29 = 0,
     };
 
     const SurfaceStates = packed struct(u32) {
@@ -358,7 +358,7 @@ pub const Surface = extern struct {
         needs_applysize: bool,
         destroy: bool,
         needs_configure: bool,
-        _padding:u19
+        _padding: u19,
     };
 
     pub const Renderer = extern struct {
@@ -377,7 +377,7 @@ pub const Surface = extern struct {
         destroy: ?GenericSurfaceFn = null,
         input_pointer: ?*const fn (*Surface, *Seat, *PointerEvent) callconv(.C) void = null,
         input_keyboard: ?*const fn (*Surface, *Seat, *KeyboardEvent) callconv(.C) void = null,
-        dnd: ?*const fn(*Surface, *Seat, *DndEvent) callconv(.C) void = null,
+        dnd: ?*const fn (*Surface, *Seat, *DndEvent) callconv(.C) void = null,
         configure: ?*const fn (*Surface, u32, u32) callconv(.C) void = null,
         close: ?GenericSurfaceFn = null,
     };
@@ -388,23 +388,21 @@ pub const Surface = extern struct {
                 maximize: bool,
                 fullscreen: bool,
                 minimize: bool,
-                _pad:u4
+                _pad: u4,
             };
             wl: *XdgToplevel,
             decoration: ?*ZxdgToplevelDecorationV1,
-            wm_capabilities:Capabilities,
-            bounds_width:i32,
-            bounds_height:i32
+            wm_capabilities: Capabilities,
+            bounds_width: i32,
+            bounds_height: i32,
         },
         popup: extern struct {
             wl: *XdgPopup,
-            lx:i32,
-            ly:i32,
-            reposition_token:u32
+            lx: i32,
+            ly: i32,
+            reposition_token: u32,
         },
-        layer: extern struct {
-            wl: *ZwlrLayerSurfaceV1
-        },
+        layer: extern struct { wl: *ZwlrLayerSurfaceV1 },
         subsurface: extern struct {
             wl: *WlSubsurface,
             parent: *Surface,
@@ -444,7 +442,7 @@ pub const Surface = extern struct {
     extern fn nwl_surface_destroy(surface: *Surface) void;
     extern fn nwl_surface_destroy_later(surface: *Surface) void;
     extern fn nwl_surface_set_size(surface: *Surface, width: u32, height: u32) void;
-    extern fn nwl_surface_set_title(surface: *Surface, title:?[*:0]const u8) void;
+    extern fn nwl_surface_set_title(surface: *Surface, title: ?[*:0]const u8) void;
     extern fn nwl_surface_swapbuffers(surface: *Surface, x: i32, y: i32) void;
     extern fn nwl_surface_render(surface: *Surface) void;
     extern fn nwl_surface_set_need_draw(surface: *Surface, rendernow: bool) void;
@@ -453,7 +451,7 @@ pub const Surface = extern struct {
     extern fn nwl_surface_role_toplevel(surface: *Surface) bool;
     extern fn nwl_surface_role_popup(surface: *Surface, parent: *Surface, positioner: *XdgPositioner) bool;
     extern fn nwl_surface_role_unset(surface: *Surface) void;
-    extern fn nwl_surface_init(surface: *Surface, state: *State, title:[*:0]const u8) void;
+    extern fn nwl_surface_init(surface: *Surface, state: *State, title: [*:0]const u8) void;
 
     pub fn commit(self: *Surface) void {
         if (@hasDecl(WlSurface, "commit")) {
@@ -467,7 +465,7 @@ pub const Surface = extern struct {
             return Error.RoleSetFailed;
         }
     }
-    pub fn rolePopup(self: *Surface, parent:*Surface, positioner:*XdgPositioner) Error!void {
+    pub fn rolePopup(self: *Surface, parent: *Surface, positioner: *XdgPositioner) Error!void {
         if (!nwl_surface_role_popup(self, parent, positioner)) {
             return Error.RoleSetFailed;
         }
@@ -565,12 +563,12 @@ pub const State = extern struct {
 };
 
 pub const ShmPool = extern struct {
-    fd:std.os.fd_t = -1,
-    data:[*]u8 = undefined,
-    pool:?*WlShmPool = null,
-    size:usize = 0,
+    fd: std.os.fd_t = -1,
+    data: [*]u8 = undefined,
+    pool: ?*WlShmPool = null,
+    size: usize = 0,
 
-    extern fn nwl_shm_pool_finish(pool:*ShmPool) void;
+    extern fn nwl_shm_pool_finish(pool: *ShmPool) void;
     pub const finish = nwl_shm_pool_finish;
 };
 
@@ -578,43 +576,43 @@ pub const ShmBufferMan = extern struct {
     pub const max_buffers = 4;
     pub const Buffer = extern struct {
         const Flags = packed struct(u8) {
-            acquired:bool = false,
-            destroy:bool = false,
-            _pad:u6 = 0
+            acquired: bool = false,
+            destroy: bool = false,
+            _pad: u6 = 0,
         };
-        wl_buffer:?*WlBuffer = null,
-        bufferdata:[*]u8 = undefined,
-        flags:Flags = .{},
+        wl_buffer: ?*WlBuffer = null,
+        bufferdata: [*]u8 = undefined,
+        flags: Flags = .{},
 
-        pub fn release(self:*Buffer) void {
+        pub fn release(self: *Buffer) void {
             self.flags.acquired = false;
         }
     };
     pub const RendererImpl = extern struct {
-        buffer_create:*const fn(buf_idx:c_uint, bufferman:*ShmBufferMan) callconv(.C) void,
-        buffer_destroy:*const fn(buf_idx:c_uint, bufferman:*ShmBufferMan) callconv(.C) void,
+        buffer_create: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.C) void,
+        buffer_destroy: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.C) void,
     };
-    pool:ShmPool = .{},
-    buffers:[max_buffers]Buffer = [_]Buffer{.{}} ** max_buffers,
-    impl:?*const RendererImpl = null,
-    width:u32 = 0,
-    height:u32 = 0,
-    stride:u32 = 0,
-    format:u32 = 0,
-    num_slots:u8 = 1,
+    pool: ShmPool = .{},
+    buffers: [max_buffers]Buffer = [_]Buffer{.{}} ** max_buffers,
+    impl: ?*const RendererImpl = null,
+    width: u32 = 0,
+    height: u32 = 0,
+    stride: u32 = 0,
+    format: u32 = 0,
+    num_slots: u8 = 1,
 
-    extern fn nwl_shm_bufferman_get_next(bufferman:*ShmBufferMan) c_int;
-    pub fn getNext(bufferman:*ShmBufferMan) !c_uint {
+    extern fn nwl_shm_bufferman_get_next(bufferman: *ShmBufferMan) c_int;
+    pub fn getNext(bufferman: *ShmBufferMan) !c_uint {
         const ret = bufferman.nwl_shm_bufferman_get_next();
         if (ret != -1) {
             return @intCast(c_uint, ret);
         }
         return error.NoAvailableBuffer;
     }
-    extern fn nwl_shm_bufferman_set_slots(bufferman:*ShmBufferMan, state:*State, num_slots:u8) void;
+    extern fn nwl_shm_bufferman_set_slots(bufferman: *ShmBufferMan, state: *State, num_slots: u8) void;
     pub const setSlots = nwl_shm_bufferman_set_slots;
-    extern fn nwl_shm_bufferman_resize(bufferman:*ShmBufferMan, state:*State, width:u32, height:u32, stride:u32, format:u32) void;
+    extern fn nwl_shm_bufferman_resize(bufferman: *ShmBufferMan, state: *State, width: u32, height: u32, stride: u32, format: u32) void;
     pub const resize = nwl_shm_bufferman_resize;
-    extern fn nwl_shm_bufferman_finish(bufferman:*ShmBufferMan) void;
+    extern fn nwl_shm_bufferman_finish(bufferman: *ShmBufferMan) void;
     pub const finish = nwl_shm_bufferman_finish;
 };
