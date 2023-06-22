@@ -203,7 +203,7 @@ pub fn build(b: *std.build.Builder) !void {
         nwl.linkSystemLibrary("cairo");
     }
     const conf = b.addConfigHeader(.{.include_path = "nwl/config.h"}, .{
-        .NWL_HAS_SEAT = @boolToInt(seat),
+        .NWL_HAS_SEAT = @intFromBool(seat),
     });
     nwl.addConfigHeader(conf);
     const scannerstep = try WlScannerStep.create(b, .{
