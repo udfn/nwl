@@ -220,7 +220,7 @@ pub fn build(b: *std.build.Builder) !void {
     scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"), false);
     b.installArtifact(nwl);
     nwl.installHeadersDirectoryOptions(.{
-        .source_dir = "nwl",
+        .source_dir = .{.path = "nwl"},
         .install_dir = .header,
         .install_subdir = "nwl",
         .exclude_extensions = &.{"build"}

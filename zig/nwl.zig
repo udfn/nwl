@@ -147,7 +147,7 @@ pub fn WlListHead(comptime linktype: type, comptime field: std.meta.FieldEnum(li
             }
         };
         pub fn iterator(self: *@This()) Iterator {
-            return .{ .this = @ptrCast(*WlList, self), .pos = self.next };
+            return .{ .this = @ptrCast(self), .pos = self.next };
         }
     };
 }
@@ -168,11 +168,11 @@ pub const WlFixed = enum(i32) {
     _,
     pub fn toDouble(f: WlFixed) f64 {
         const i = @as(i64, ((1023 + 44) << 52) + (1 << 51)) + @intFromEnum(f);
-        return @bitCast(f64, i) - (3 << 43);
+        return @as(f64, @bitCast(i)) - (3 << 43);
     }
     pub fn fromDouble(d: f64) WlFixed {
         const i = d + (3 << (51 - 8));
-        return @enumFromInt(WlFixed, @bitCast(i64, i));
+        return @enumFromInt(@as(i64, @bitCast(i)));
     }
     pub fn toInt(self: WlFixed) c_int {
         return @divTrunc(@intFromEnum(self), @as(c_int, 256));
@@ -457,7 +457,7 @@ pub const Surface = extern struct {
         if (@hasDecl(WlSurface, "commit")) {
             self.wl.surface.commit();
         } else {
-            wl_proxy_marshal(@ptrCast(*WlProxy, self.wl.surface), @as(u32, 6));
+            wl_proxy_marshal(@ptrCast(self.wl.surface), @as(u32, 6));
         }
     }
     pub fn roleTopLevel(self: *Surface) Error!void {
@@ -605,7 +605,7 @@ pub const ShmBufferMan = extern struct {
     pub fn getNext(bufferman: *ShmBufferMan) !c_uint {
         const ret = bufferman.nwl_shm_bufferman_get_next();
         if (ret != -1) {
-            return @intCast(c_uint, ret);
+            return @intCast(ret);
         }
         return error.NoAvailableBuffer;
     }
