@@ -395,7 +395,7 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 		seat->pointer_event->buttons = 0;
 	}
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
-		nwl_seat_set_pointer_cursor(seat, "left_ptr");
+		nwl_seat_set_pointer_cursor(seat, "default");
 	}
 }
 
