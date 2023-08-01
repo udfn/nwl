@@ -42,18 +42,22 @@ pub const WlScannerStep = struct {
         };
         // Smarten this up, perhaps..
         const incpath = std.mem.trim(u8, b.exec(&.{ "pkg-config", "--variable=includedir", "wayland-client" }), &std.ascii.whitespace);
-        res.lib.addIncludePath(incpath);
+        res.lib.addIncludePath(.{ .path = incpath });
         res.lib.linkLibC();
         return res;
     }
     pub fn linkWith(self: *Self, lib: *std.Build.CompileStep) void {
         lib.linkLibrary(self.lib);
-        lib.addIncludePath(self.dest_path);
+        lib.addIncludePath(.{ .path = self.dest_path });
     }
     pub fn addProtocol(self: *Self, xml: []const u8, system: bool) void {
         const node = self.step.owner.allocator.create(QueueType.Node) catch @panic("OOM");
-        node.data = .{ .xml = xml, .file = .{ .step = &self.step }, .system = system };
-        self.lib.addCSourceFileSource(.{ .source = .{ .generated = &node.data.file }, .args = &.{} });
+        node.data = .{
+            .xml = xml,
+            .file = .{ .step = &self.step },
+            .system = system,
+        };
+        self.lib.addCSourceFile(.{ .file = .{ .generated = &node.data.file }, .flags = &.{} });
         self.queue.prepend(node);
     }
     pub fn addProtocolFromPath(self: *Self, base: []const u8, xml: []const u8) void {
@@ -184,7 +188,7 @@ pub fn build(b: *std.build.Builder) !void {
     scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"), false);
     nwl.linkLibC();
     nwl.linkSystemLibrary("wayland-client");
-    nwl.addIncludePath(".");
+    nwl.addIncludePath(.{.path = "."});
     nwl.addCSourceFiles(&.{
         "src/shell.c",
         "src/shm.c",
@@ -194,19 +198,19 @@ pub fn build(b: *std.build.Builder) !void {
     if (seat) {
         nwl.linkSystemLibrary("xkbcommon");
         nwl.linkSystemLibrary("wayland-cursor");
-        nwl.addCSourceFile("src/seat.c", &.{});
+        nwl.addCSourceFile(.{.file = .{.path = "src/seat.c"}, .flags = &.{}});
         scannerstep.addSystemProtocols(&.{
             "staging/cursor-shape/cursor-shape-v1.xml",
             "unstable/tablet/tablet-unstable-v2.xml",
         });
     }
     if (egl) {
-        nwl.addCSourceFile("src/egl.c", &.{});
+        nwl.addCSourceFile(.{.file = .{.path = "src/egl.c"}, .flags = &.{}});
         nwl.linkSystemLibrary("wayland-egl");
         nwl.linkSystemLibrary("epoxy");
     }
     if (cairo) {
-        nwl.addCSourceFile("src/cairo.c", &.{});
+        nwl.addCSourceFile(.{.file = .{.path = "src/cairo.c"}, .flags = &.{}});
         nwl.linkSystemLibrary("cairo");
     }
     const conf = b.addConfigHeader(.{ .include_path = "nwl/config.h" }, .{
