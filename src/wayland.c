@@ -16,7 +16,9 @@
 #include "xdg-shell.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-output-unstable-v1.h"
-
+#if NWL_HAS_SEAT
+#include "cursor-shape-v1.h"
+#endif
 struct nwl_poll {
 	int epfd;
 	int dirt_eventfd;
@@ -260,6 +262,8 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 			}
 			nwl_seat_add_data_device(seat);
 		}
+	} else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
+		state->wl.cursor_shape_manager = nwl_registry_bind(reg, name, &wp_cursor_shape_manager_v1_interface, version, 1);
 	}
 #endif
 }
@@ -502,6 +506,11 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	if (state->wl.data_device_manager) {
 		wl_data_device_manager_destroy(state->wl.data_device_manager);
 	}
+#if NWL_HAS_SEAT
+	if (state->wl.cursor_shape_manager) {
+		wp_cursor_shape_manager_v1_destroy(state->wl.cursor_shape_manager);
+	}
+#endif
 	wl_display_disconnect(state->wl.display);
 	poll_destroy(state->poll);
 	free(state->poll);

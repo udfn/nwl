@@ -90,7 +90,8 @@ pub const XdgPositioner = WaylandObject("xdg_positioner");
 pub const XdgToplevel = WaylandObject("xdg_toplevel");
 pub const XdgPopup = WaylandObject("xdg_popup");
 pub const ZwlrLayerSurfaceV1 = WaylandObject("zwlr_layer_surface_v1");
-
+pub const WpCursorShapeDeviceV1 = WaylandObject("wp_cursor_shape_device_v1");
+pub const WpCursorShapeManagerV1 = WaylandObject("wp_cursor_shape_manager_v1");
 pub const XkbContext = opaque {};
 pub const WlCursorTheme = opaque {};
 pub const Poll = opaque {};
@@ -257,12 +258,9 @@ pub const PointerEvent = extern struct {
 };
 
 const PointerSurface = extern struct {
-    const WlCursor = opaque {};
-    xcursor: ?*WlCursor,
+    shape_device: ?*WpCursorShapeDeviceV1,
     xcursor_surface: ?*WlSurface,
     nwl: ?*Surface,
-    hot_x: i32,
-    hot_y: i32,
 };
 
 pub const Seat = extern struct {
@@ -276,6 +274,42 @@ pub const Seat = extern struct {
         keyboard_state: ?*XkbState,
         keyboard_compose_state: ?*XkbComposeState,
         keyboard_compose_table: ?*XkbComposeTable,
+    };
+    const CursorShape = enum(u32) {
+        default = 1,
+        context_menu,
+        help,
+        pointer,
+        progress,
+        wait,
+        cell,
+        crosshair,
+        text,
+        vertical_text,
+        alias,
+        copy,
+        move,
+        no_drop,
+        not_allowed,
+        grab,
+        grabbing,
+        e_resize,
+        n_resize,
+        ne_resize,
+        nw_resize,
+        s_resize,
+        se_resize,
+        sw_resize,
+        w_resize,
+        ew_resize,
+        ns_resize,
+        nesw_resize,
+        nwse_resize,
+        col_resize,
+        row_resize,
+        all_scroll,
+        zoom_in,
+        zoom_out,
     };
 
     state: *State,
@@ -300,6 +334,26 @@ pub const Seat = extern struct {
     pointer_surface: PointerSurface,
     pointer_event: ?*PointerEvent,
     name: [*:0]u8,
+
+    extern fn nwl_seat_set_pointer_cursor(seat:*Seat, cursor:[*:0]const u8) void;
+    extern fn nwl_seat_set_pointer_shape(seat:*Seat, shape:CursorShape) void;
+    extern fn nwl_seat_set_pointer_surface(seat:*Seat, surface:*Surface, hotspot_x:i32, hotspot_y:i32) bool;
+    extern fn nwl_seat_start_drag(seat:*Seat, data_source:*WlDataSource, icon:?*Surface) void;
+
+    pub const setPointerCursor = nwl_seat_set_pointer_cursor;
+    pub const setPointerShape = nwl_seat_set_pointer_shape;
+    pub fn setPointerSurface(seat:*Seat, surface:*Surface, hotspot_x:i32, hotspot_y:i32) !void {
+        if (!seat.nwl_seat_set_pointer_surface(surface, hotspot_x, hotspot_y)) {
+            //TODO: improve this
+            return error.Generic;
+        }
+    }
+    pub fn startDrag(seat:*Seat, data_source:*WlDataSource, icon:?*Surface) !void {
+        if (!seat.nwl_seat_start_drag(data_source, icon)) {
+            //TODO: improve this
+            return error.Generic;
+        }
+    }
 };
 
 pub const DndEvent = extern struct {
@@ -514,6 +568,7 @@ pub const State = extern struct {
         decoration: ?*ZxdgDecorationManagerV1 = null,
         subcompositor: ?*WlSubcompositor = null,
         data_device_manager: ?*WlDataDeviceManager = null,
+        cursor_shape_manager: ?*WpCursorShapeManagerV1 = null,
     } = .{},
     seats: WlListHead(Seat, .link) = .{},
     outputs: WlListHead(Output, .link) = .{},

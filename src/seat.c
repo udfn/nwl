@@ -12,6 +12,7 @@
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
 #include "nwl/seat.h"
+#include "cursor-shape-v1.h"
 
 static const char *get_env_locale() {
 	const char *loc;
@@ -275,36 +276,58 @@ static const struct wl_keyboard_listener keyboard_listener = {
 	handle_keyboard_repeat
 };
 
-// Just a convenience function because reasons
-void nwl_seat_get_pointer_cursor_metrics(struct nwl_seat *seat, int32_t *width, int32_t *height, int32_t *hotspot_x, int32_t *hotspot_y) {
-	int32_t cursor_width;
-	int32_t cursor_height;
-	if (seat->pointer_surface.nwl) {
-		cursor_width = seat->pointer_surface.nwl->width;
-		cursor_height = seat->pointer_surface.nwl->height;
-	} else if (seat->pointer_surface.xcursor) {
-		int scale = seat->state->cursor_theme_size/24;
-		cursor_width = seat->pointer_surface.xcursor->images[0]->width/scale;
-		cursor_height = seat->pointer_surface.xcursor->images[0]->height/scale;
+// It could be that not all cursor themes have all of these named like this..
+const char *xcursor_shapes[] = {
+	[NWL_CURSOR_SHAPE_DEFAULT] = "default",
+	[NWL_CURSOR_SHAPE_CONTEXT_MENU] = "context-menu",
+	[NWL_CURSOR_SHAPE_HELP] = "help",
+	[NWL_CURSOR_SHAPE_POINTER] = "pointer",
+	[NWL_CURSOR_SHAPE_PROGRESS] = "progress",
+	[NWL_CURSOR_SHAPE_WAIT] = "wait",
+	[NWL_CURSOR_SHAPE_CELL] = "cell",
+	[NWL_CURSOR_SHAPE_CROSSHAIR] = "crosshair",
+	[NWL_CURSOR_SHAPE_TEXT] = "text",
+	[NWL_CURSOR_SHAPE_VERTICAL_TEXT] = "vertical-text",
+	[NWL_CURSOR_SHAPE_ALIAS] = "alias",
+	[NWL_CURSOR_SHAPE_COPY] = "copy",
+	[NWL_CURSOR_SHAPE_MOVE] = "move",
+	[NWL_CURSOR_SHAPE_NO_DROP] = "no-drop",
+	[NWL_CURSOR_SHAPE_NOT_ALLOWED] = "not-allowed",
+	[NWL_CURSOR_SHAPE_GRAB] = "grab",
+	[NWL_CURSOR_SHAPE_GRABBING] = "grabbing",
+	[NWL_CURSOR_SHAPE_E_RESIZE] = "e-resize",
+	[NWL_CURSOR_SHAPE_N_RESIZE] = "n-resize",
+	[NWL_CURSOR_SHAPE_NE_RESIZE] = "ne-resize",
+	[NWL_CURSOR_SHAPE_NW_RESIZE] = "nw-resize",
+	[NWL_CURSOR_SHAPE_S_RESIZE] = "s-resize",
+	[NWL_CURSOR_SHAPE_SE_RESIZE] = "se-resize",
+	[NWL_CURSOR_SHAPE_SW_RESIZE] = "sw-resize",
+	[NWL_CURSOR_SHAPE_W_RESIZE] = "w-resize",
+	[NWL_CURSOR_SHAPE_EW_RESIZE] = "ew-resize",
+	[NWL_CURSOR_SHAPE_NS_RESIZE] = "ns-resize",
+	[NWL_CURSOR_SHAPE_NESW_RESIZE] = "nesw-resize",
+	[NWL_CURSOR_SHAPE_NWSE_RESIZE] = "nwse-resize",
+	[NWL_CURSOR_SHAPE_COL_RESIZE] = "col-resize",
+	[NWL_CURSOR_SHAPE_ROW_RESIZE] = "row-resize",
+	[NWL_CURSOR_SHAPE_ALL_SCROLL] = "all-scroll",
+	[NWL_CURSOR_SHAPE_ZOOM_IN] = "zoom-in",
+	[NWL_CURSOR_SHAPE_ZOOM_OUT] = "zoom-out"
+};
+
+void nwl_seat_set_pointer_shape(struct nwl_seat *seat, uint32_t shape) {
+	if (seat->state->wl.cursor_shape_manager) {
+		if (!seat->pointer_surface.shape_device) {
+			seat->pointer_surface.shape_device = wp_cursor_shape_manager_v1_get_pointer(seat->state->wl.cursor_shape_manager, seat->pointer);
+		}
+		wp_cursor_shape_device_v1_set_shape(seat->pointer_surface.shape_device, seat->pointer_event->serial, shape);
+		seat->pointer_surface.nwl = NULL;
 	} else {
-		return;
-	}
-	if (width) {
-		*width = cursor_width;
-	}
-	if (height) {
-		*height = cursor_height;
-	}
-	if (hotspot_x) {
-		*hotspot_x = seat->pointer_surface.hot_x;
-	}
-	if (hotspot_y) {
-		*hotspot_y = seat->pointer_surface.hot_y;
+		if (shape > 0 && shape <= NWL_CURSOR_SHAPE_ZOOM_OUT) {
+			nwl_seat_set_pointer_cursor(seat, xcursor_shapes[shape]);
+		}
 	}
 }
 
-
-// Should there be a nice static list of cursors to try 🤔
 void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 	if (cursor == NULL) {
 		wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, NULL, 0, 0);
@@ -325,20 +348,20 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 		seat->state->cursor_theme_size = 24 * surface->scale;
 		wl_surface_set_buffer_scale(seat->pointer_surface.xcursor_surface, surface->scale);
 	}
-	seat->pointer_surface.xcursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
-	if (!seat->pointer_surface.xcursor) {
+	struct wl_cursor *xcursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
+	if (!xcursor) {
 		return;
 	}
-	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(seat->pointer_surface.xcursor->images[0]);
+	struct wl_buffer *cursbuffer = wl_cursor_image_get_buffer(xcursor->images[0]);
 	wl_surface_attach(seat->pointer_surface.xcursor_surface, cursbuffer, 0, 0);
 	wl_surface_damage_buffer(seat->pointer_surface.xcursor_surface, 0, 0, INT32_MAX, INT32_MAX);
 	wl_surface_commit(seat->pointer_surface.xcursor_surface);
 	seat->pointer_surface.nwl = NULL;
 	// Divide hotspot by scale, why? Because the compositor multiplies it by the scale!
-	seat->pointer_surface.hot_x = seat->pointer_surface.xcursor->images[0]->hotspot_x/surface->scale;
-	seat->pointer_surface.hot_y = seat->pointer_surface.xcursor->images[0]->hotspot_y/surface->scale;
+	int32_t hot_x = xcursor->images[0]->hotspot_x/surface->scale;
+	int32_t hot_y = xcursor->images[0]->hotspot_y/surface->scale;
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, seat->pointer_surface.xcursor_surface,
-		seat->pointer_surface.hot_x, seat->pointer_surface.hot_y);
+		hot_x, hot_y);
 }
 
 static inline void resize_surface_to_desired(struct nwl_surface *surface, int scale) {
@@ -366,8 +389,6 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 		surface->role_id = NWL_SURFACE_ROLE_CURSOR;
 		wl_surface_commit(surface->wl.surface);
 	}
-	seat->pointer_surface.hot_x = hotspot_x;
-	seat->pointer_surface.hot_y = hotspot_y;
 	seat->pointer_surface.nwl = surface;
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, surface->wl.surface, hotspot_x, hotspot_y);
 	if (surface) {
@@ -395,7 +416,7 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 		seat->pointer_event->buttons = 0;
 	}
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
-		nwl_seat_set_pointer_cursor(seat, "default");
+		nwl_seat_set_pointer_shape(seat, NWL_CURSOR_SHAPE_DEFAULT);
 	}
 }
 
@@ -656,6 +677,10 @@ static void seat_release_pointer(struct nwl_seat *seat) {
 	if (seat->pointer_surface.xcursor_surface) {
 		wl_surface_destroy(seat->pointer_surface.xcursor_surface);
 		seat->pointer_surface.xcursor_surface = NULL;
+	}
+	if (seat->pointer_surface.shape_device) {
+		wp_cursor_shape_device_v1_destroy(seat->pointer_surface.shape_device);
+		seat->pointer_surface.shape_device = NULL;
 	}
 	seat->pointer = NULL;
 }
