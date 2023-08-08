@@ -333,22 +333,23 @@ pub const Seat = extern struct {
     pointer_prev_focus: ?*Surface,
     pointer_surface: PointerSurface,
     pointer_event: ?*PointerEvent,
-    name: [*:0]u8,
+    name: ?[*:0]u8,
+    userdata:?*anyopaque,
 
-    extern fn nwl_seat_set_pointer_cursor(seat:*Seat, cursor:[*:0]const u8) void;
-    extern fn nwl_seat_set_pointer_shape(seat:*Seat, shape:CursorShape) void;
-    extern fn nwl_seat_set_pointer_surface(seat:*Seat, surface:*Surface, hotspot_x:i32, hotspot_y:i32) bool;
-    extern fn nwl_seat_start_drag(seat:*Seat, data_source:*WlDataSource, icon:?*Surface) void;
+    extern fn nwl_seat_set_pointer_cursor(seat: *Seat, cursor: [*:0]const u8) void;
+    extern fn nwl_seat_set_pointer_shape(seat: *Seat, shape: CursorShape) void;
+    extern fn nwl_seat_set_pointer_surface(seat: *Seat, surface: *Surface, hotspot_x: i32, hotspot_y: i32) bool;
+    extern fn nwl_seat_start_drag(seat: *Seat, data_source: *WlDataSource, icon: ?*Surface) void;
 
     pub const setPointerCursor = nwl_seat_set_pointer_cursor;
     pub const setPointerShape = nwl_seat_set_pointer_shape;
-    pub fn setPointerSurface(seat:*Seat, surface:*Surface, hotspot_x:i32, hotspot_y:i32) !void {
+    pub fn setPointerSurface(seat: *Seat, surface: *Surface, hotspot_x: i32, hotspot_y: i32) !void {
         if (!seat.nwl_seat_set_pointer_surface(surface, hotspot_x, hotspot_y)) {
             //TODO: improve this
             return error.Generic;
         }
     }
-    pub fn startDrag(seat:*Seat, data_source:*WlDataSource, icon:?*Surface) !void {
+    pub fn startDrag(seat: *Seat, data_source: *WlDataSource, icon: ?*Surface) !void {
         if (!seat.nwl_seat_start_drag(data_source, icon)) {
             //TODO: improve this
             return error.Generic;
@@ -557,6 +558,7 @@ pub const Surface = extern struct {
 
 pub const State = extern struct {
     pub const PollCallbackFn = *const fn (*State, ?*anyopaque) callconv(.C) void;
+    pub const BoundGlobalKind = enum(u32) { output = 0, seat };
     wl: extern struct {
         display: ?*WlDisplay = null,
         registry: ?*WlRegistry = null,
@@ -582,8 +584,8 @@ pub const State = extern struct {
     run_with_zero_surfaces: bool = false,
     poll: ?*Poll = null,
     events: extern struct {
-        output_new: ?*const fn (*Output) callconv(.C) void = null,
-        output_destroy: ?*const fn (*Output) callconv(.C) void = null,
+        global_bound: ?*const fn (kind: BoundGlobalKind, data: *anyopaque) callconv(.C) void = null,
+        global_destroy: ?*const fn (kind: BoundGlobalKind, data: *anyopaque) callconv(.C) void = null,
         global_add: ?*const fn (*State, *WlRegistry, u32, [*:0]const u8, u32) callconv(.C) bool = null,
         global_remove: ?*const fn (*State, *WlRegistry, u32) callconv(.C) void = null,
     } = .{},

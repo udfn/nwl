@@ -86,8 +86,8 @@ static void handle_output_done(
 	struct nwl_output *nwloutput = data;
 	if (nwloutput->is_done > 0) {
 		nwloutput->is_done--;
-		if (!nwloutput->is_done && nwloutput->state->events.output_new) {
-			nwloutput->state->events.output_new(nwloutput);
+		if (!nwloutput->is_done && nwloutput->state->events.global_bound) {
+			nwloutput->state->events.global_bound(NWL_BOUND_GLOBAL_OUTPUT, nwloutput);
 		}
 	}
 }
@@ -177,8 +177,8 @@ static const struct zxdg_output_v1_listener xdg_output_listener = {
 
 static void nwl_output_destroy(void *glob) {
 	struct nwl_output *output = glob;
-	if (output->state->events.output_destroy) {
-		output->state->events.output_destroy(output);
+	if (output->state->events.global_destroy) {
+		output->state->events.global_destroy(NWL_BOUND_GLOBAL_OUTPUT, output);
 	}
 	if (output->name) {
 		free(output->name);
@@ -478,6 +478,9 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	if (state->cursor_theme) {
 		wl_cursor_theme_destroy(state->cursor_theme);
 	}
+	if (state->wl.cursor_shape_manager) {
+		wp_cursor_shape_manager_v1_destroy(state->wl.cursor_shape_manager);
+	}
 #endif
 	if (state->wl.compositor) {
 		wl_compositor_destroy(state->wl.compositor);
@@ -506,11 +509,6 @@ void nwl_wayland_uninit(struct nwl_state *state) {
 	if (state->wl.data_device_manager) {
 		wl_data_device_manager_destroy(state->wl.data_device_manager);
 	}
-#if NWL_HAS_SEAT
-	if (state->wl.cursor_shape_manager) {
-		wp_cursor_shape_manager_v1_destroy(state->wl.cursor_shape_manager);
-	}
-#endif
 	wl_display_disconnect(state->wl.display);
 	poll_destroy(state->poll);
 	free(state->poll);

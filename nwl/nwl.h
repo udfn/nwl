@@ -38,6 +38,11 @@ struct nwl_state_sub_impl {
 	void (*destroy)(struct nwl_state_sub *sub);
 };
 
+enum nwl_bound_global_kind {
+	NWL_BOUND_GLOBAL_OUTPUT = 0,
+	NWL_BOUND_GLOBAL_SEAT
+};
+
 struct nwl_state {
 	struct {
 		struct wl_display *display;
@@ -66,15 +71,16 @@ struct nwl_state {
 	bool has_errored;
 	struct nwl_poll *poll;
 	struct {
-		// A wild output appears!
-		void (*output_new)(struct nwl_output *output);
-		// The output is about to go away!
-		void (*output_destroy)(struct nwl_output *output);
+		// A global has been bound by nwl!
+		// kind is nwl_bound_global_kind
+		void (*global_bound)(uint32_t kind, void *data);
+		// The global is about to be destroyed!
+		void (*global_destroy)(uint32_t kind, void *data);
 		// A wild global appears! Return true to not have nwl take care of it!
 		bool (*global_add)(struct nwl_state *state, struct wl_registry *registry, uint32_t name,
 			const char *interface, uint32_t version);
 		// The global disappears!
-		void (*global_remove)(struct nwl_state *statem, struct wl_registry *registry, uint32_t name);
+		void (*global_remove)(struct nwl_state *state, struct wl_registry *registry, uint32_t name);
 	} events;
 	const char *xdg_app_id; // This app_id is conveniently automagically set on xdg_toplevels, if not null
 };

@@ -891,6 +891,9 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 
 static void nwl_seat_destroy(void *data) {
 	struct nwl_seat *seat = data;
+	if (seat->state->events.global_destroy) {
+		seat->state->events.global_destroy(NWL_BOUND_GLOBAL_SEAT, seat);
+	}
 	wl_list_remove(&seat->link);
 	if (seat->pointer) {
 		seat_release_pointer(seat);
@@ -937,6 +940,9 @@ void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t n
 	wl_list_insert(&state->globals, &glob->link);
 	if (state->wl.data_device_manager) {
 		nwl_seat_add_data_device(nwlseat);
+	}
+	if (state->events.global_bound) {
+		state->events.global_bound(NWL_BOUND_GLOBAL_SEAT, nwlseat);
 	}
 }
 

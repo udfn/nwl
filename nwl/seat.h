@@ -75,6 +75,7 @@ struct nwl_seat {
 	} pointer_surface;
 	struct nwl_pointer_event *pointer_event;
 	char *name;
+	void *userdata;
 };
 
 enum nwl_pointer_event_changed {
