@@ -189,12 +189,12 @@ pub fn build(b: *std.build.Builder) !void {
     nwl.linkLibC();
     nwl.linkSystemLibrary("wayland-client");
     nwl.addIncludePath(.{.path = "."});
-    nwl.addCSourceFiles(&.{
+    nwl.addCSourceFiles(.{ .files = &.{
         "src/shell.c",
         "src/shm.c",
         "src/surface.c",
         "src/wayland.c",
-    }, &.{});
+    }});
     if (seat) {
         nwl.linkSystemLibrary("xkbcommon");
         nwl.linkSystemLibrary("wayland-cursor");
