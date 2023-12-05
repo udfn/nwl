@@ -19,6 +19,7 @@ pub const WlScannerStep = struct {
     dest_path: []const u8,
     gen_server_headers: bool,
     client_header_suffix: []const u8,
+    system_protocol_dir: ?[]const u8 = null,
     const Self = @This();
     pub fn create(b: *std.Build, options: WlScannerStepOptions) !*Self {
         const res = try b.allocator.create(Self);
@@ -41,7 +42,7 @@ pub const WlScannerStep = struct {
             .client_header_suffix = options.client_header_suffix,
         };
         // Smarten this up, perhaps..
-        const incpath = std.mem.trim(u8, b.exec(&.{ "pkg-config", "--variable=includedir", "wayland-client" }), &std.ascii.whitespace);
+        const incpath = std.mem.trim(u8, b.run(&.{ "pkg-config", "--variable=includedir", "wayland-client" }), &std.ascii.whitespace);
         res.lib.addIncludePath(.{ .path = incpath });
         res.lib.linkLibC();
         return res;
@@ -51,6 +52,10 @@ pub const WlScannerStep = struct {
         lib.addIncludePath(.{ .path = self.dest_path });
     }
     pub fn addProtocol(self: *Self, xml: []const u8, system: bool) void {
+        if (system and self.system_protocol_dir == null) {
+            self.system_protocol_dir = std.mem.trim(u8, self.step.owner.run(&.{ "pkg-config", "--variable=pkgdatadir", "wayland-protocols" }), &std.ascii.whitespace);
+
+        }
         const node = self.step.owner.allocator.create(QueueType.Node) catch @panic("OOM");
         node.data = .{
             .xml = xml,
@@ -91,7 +96,7 @@ pub const WlScannerStep = struct {
 
     fn runScanner(self: *Self, protocol: []const u8, gentype: WlScanGenType, output: []const u8) !void {
         var code: u8 = undefined;
-        _ = try self.step.owner.execAllowFail(&.{ "wayland-scanner", gentype.toString(), protocol, output }, &code, .Ignore);
+        _ = try self.step.owner.runAllowFail(&.{ "wayland-scanner", gentype.toString(), protocol, output }, &code, .Ignore);
     }
 
     fn processProtocol(self: *Self, ally: std.mem.Allocator, protocol: *QueueType.Node.Data, gentype: WlScanGenType, destdir: *const std.fs.Dir, realdestpath: []const u8) !void {
@@ -102,13 +107,13 @@ pub const WlScannerStep = struct {
             .serverheader => "-protocol.h",
         };
         const filename = try std.mem.concat(ally, u8, &.{ protoname, filesuffix });
-        var needscanner = brk: {
+        const needscanner = brk: {
             const outstat = destdir.statFile(filename) catch break :brk true;
-            const instat = std.fs.cwd().statFile(protocol.xml) catch unreachable;
+            const instat = try std.fs.cwd().statFile(protocol.xml);
             break :brk outstat.mtime < instat.mtime;
         };
         if (needscanner) {
-            var fullpath = try std.fs.path.join(ally, &.{ realdestpath, filename });
+            const fullpath = try std.fs.path.join(ally, &.{ realdestpath, filename });
             try self.runScanner(protocol.xml, gentype, fullpath);
             // Should use the cache system here instead of... this..
             self.step.result_cached = false;
@@ -122,7 +127,7 @@ pub const WlScannerStep = struct {
     pub fn process(self: *Self, protocol: *QueueType.Node.Data, dest: *const std.fs.Dir, realdestpath: []const u8) !void {
         var buf: [2048]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(buf[0..]);
-        var ally = fba.allocator();
+        const ally = fba.allocator();
         try self.processProtocol(ally, protocol, .code, dest, realdestpath);
         fba.reset();
         try self.processProtocol(ally, protocol, .clientheader, dest, realdestpath);
@@ -140,28 +145,22 @@ pub const WlScannerStep = struct {
         if (self.queue.first == null) {
             return;
         }
-        var sysprotopath: ?[]const u8 = null;
         step.result_cached = true;
         const dest = try std.fs.cwd().makeOpenPath(builder.pathFromRoot(self.dest_path), .{});
         const realdestpath = try dest.realpathAlloc(builder.allocator, ".");
         while (it) |node| : (it = node.next) {
             if (node.data.system) {
-                if (sysprotopath == null) {
-                    sysprotopath = try self.getSysWlProtocolsDir();
-                }
+
                 var buf: [2048]u8 = undefined;
                 var fba = std.heap.FixedBufferAllocator.init(&buf);
-                const newpath = try std.fs.path.join(fba.allocator(), &.{ sysprotopath.?, node.data.xml });
+                const newpath = try std.fs.path.join(fba.allocator(), &.{ self.system_protocol_dir.?, node.data.xml });
                 node.data.xml = newpath;
             }
-            try self.process(&node.data, &dest, realdestpath);
+            self.process(&node.data, &dest, realdestpath) catch |err| {
+                std.log.err("failed to process protocol {s}", .{node.data.xml});
+                return err;
+            };
         }
-    }
-    fn getSysWlProtocolsDir(self: *Self) ![]const u8 {
-        // Don't really like doing this, but you gotta do what you gotta do..
-        var code: u8 = undefined;
-        const systemprotodir = try self.step.owner.execAllowFail(&.{ "pkg-config", "--variable=pkgdatadir", "wayland-protocols" }, &code, .Ignore);
-        return std.mem.trim(u8, systemprotodir, &std.ascii.whitespace);
     }
 };
 
