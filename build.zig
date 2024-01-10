@@ -8,22 +8,21 @@ pub const WlScannerStep = struct {
     };
     const WlScannerStepOptions = struct {
         optimize: std.builtin.OptimizeMode,
-        target: std.zig.CrossTarget,
+        target: std.Build.ResolvedTarget,
         server_headers: bool = false,
         client_header_suffix: []const u8 = "-client-protocol.h",
     };
     const QueueType = std.SinglyLinkedList(Protocol);
     step: std.Build.Step,
     queue: QueueType,
-    lib: *std.build.CompileStep,
-    dest_path: []const u8,
+    lib: *std.Build.Step.Compile,
+    dest_path: std.Build.GeneratedFile,
     gen_server_headers: bool,
     client_header_suffix: []const u8,
     system_protocol_dir: ?[]const u8 = null,
     const Self = @This();
     pub fn create(b: *std.Build, options: WlScannerStepOptions) !*Self {
         const res = try b.allocator.create(Self);
-        const dest_path = try b.cache_root.join(b.allocator, &.{"wl-gen"});
         res.* = .{
             .step = std.Build.Step.init(.{
                 .id = .custom,
@@ -37,28 +36,32 @@ pub const WlScannerStep = struct {
                 .target = options.target,
                 .optimize = options.optimize,
             }),
-            .dest_path = dest_path,
+            .dest_path = .{ .step = &res.step },
             .gen_server_headers = options.server_headers,
             .client_header_suffix = options.client_header_suffix,
         };
         // Smarten this up, perhaps..
-        const incpath = std.mem.trim(u8, b.run(&.{ "pkg-config", "--variable=includedir", "wayland-client" }), &std.ascii.whitespace);
-        res.lib.addIncludePath(.{ .path = incpath });
-        res.lib.linkLibC();
+        res.lib.linkSystemLibrary("wayland-client");
         return res;
     }
-    pub fn linkWith(self: *Self, lib: *std.Build.CompileStep) void {
+    pub fn linkWith(self: *Self, lib: *std.Build.Step.Compile) void {
         lib.linkLibrary(self.lib);
-        lib.addIncludePath(.{ .path = self.dest_path });
+        lib.addIncludePath(.{ .generated = &self.dest_path });
     }
     pub fn addProtocol(self: *Self, xml: []const u8, system: bool) void {
-        if (system and self.system_protocol_dir == null) {
-            self.system_protocol_dir = std.mem.trim(u8, self.step.owner.run(&.{ "pkg-config", "--variable=pkgdatadir", "wayland-protocols" }), &std.ascii.whitespace);
-
-        }
+        const real_xml = blk: {
+            if (system) {
+                if (self.system_protocol_dir == null) {
+                    self.system_protocol_dir = std.mem.trim(u8, self.step.owner.run(&.{ "pkg-config", "--variable=pkgdatadir", "wayland-protocols" }), &std.ascii.whitespace);
+                }
+                break :blk self.step.owner.pathJoin(&.{self.system_protocol_dir.?, xml});
+            } else {
+                break :blk xml;
+            }
+        };
         const node = self.step.owner.allocator.create(QueueType.Node) catch @panic("OOM");
         node.data = .{
-            .xml = xml,
+            .xml = real_xml,
             .file = .{ .step = &self.step },
             .system = system,
         };
@@ -92,14 +95,21 @@ pub const WlScannerStep = struct {
         }
     };
 
-    const WlScanError = error{WaylandScannerFail};
-
-    fn runScanner(self: *Self, protocol: []const u8, gentype: WlScanGenType, output: []const u8) !void {
-        var code: u8 = undefined;
-        _ = try self.step.owner.runAllowFail(&.{ "wayland-scanner", gentype.toString(), protocol, output }, &code, .Ignore);
+    fn runScanner(self: *Self, protocol: []const u8, gentype: WlScanGenType, output: []const u8, dest: std.fs.Dir) !void {
+        var scannerprocess = std.process.Child.init(&.{ "wayland-scanner", gentype.toString(), protocol, output}, self.step.owner.allocator);
+        scannerprocess.cwd_dir = dest;
+        const ret = try scannerprocess.spawnAndWait();
+        switch (ret) {
+            .Exited => |val| {
+                if (val == 0) {
+                    return;
+                }
+            }, else => {}
+        }
+        return error.WaylandScannerFailed;
     }
 
-    fn processProtocol(self: *Self, ally: std.mem.Allocator, protocol: *QueueType.Node.Data, gentype: WlScanGenType, destdir: *const std.fs.Dir, realdestpath: []const u8) !void {
+    fn processProtocol(self: *Self, ally: std.mem.Allocator, protocol: *QueueType.Node.Data, gentype: WlScanGenType, dest: std.fs.Dir) !void {
         const protoname = std.fs.path.stem(protocol.xml);
         const filesuffix = switch (gentype) {
             .code => ".c",
@@ -107,68 +117,65 @@ pub const WlScannerStep = struct {
             .serverheader => "-protocol.h",
         };
         const filename = try std.mem.concat(ally, u8, &.{ protoname, filesuffix });
-        const needscanner = brk: {
-            const outstat = destdir.statFile(filename) catch break :brk true;
-            const instat = try std.fs.cwd().statFile(protocol.xml);
-            break :brk outstat.mtime < instat.mtime;
-        };
-        if (needscanner) {
-            const fullpath = try std.fs.path.join(ally, &.{ realdestpath, filename });
-            try self.runScanner(protocol.xml, gentype, fullpath);
-            // Should use the cache system here instead of... this..
-            self.step.result_cached = false;
-        }
-        if (gentype == .code) {
-            const path = self.step.owner.pathJoin(&.{ self.dest_path, filename });
-            protocol.file.path = path;
-        }
+        try self.runScanner(protocol.xml, gentype, filename, dest);
     }
 
-    pub fn process(self: *Self, protocol: *QueueType.Node.Data, dest: *const std.fs.Dir, realdestpath: []const u8) !void {
+    pub fn process(self: *Self, protocol: *QueueType.Node.Data, dest: std.fs.Dir) !void {
         var buf: [2048]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(buf[0..]);
         const ally = fba.allocator();
-        try self.processProtocol(ally, protocol, .code, dest, realdestpath);
+        try self.processProtocol(ally, protocol, .code, dest);
         fba.reset();
-        try self.processProtocol(ally, protocol, .clientheader, dest, realdestpath);
+        try self.processProtocol(ally, protocol, .clientheader, dest);
         if (self.gen_server_headers) {
             fba.reset();
-            try self.processProtocol(ally, protocol, .serverheader, dest, realdestpath);
+            try self.processProtocol(ally, protocol, .serverheader, dest);
         }
     }
 
     pub fn make(step: *std.Build.Step, progress: *std.Progress.Node) !void {
         _ = progress;
         const self = @fieldParentPtr(Self, "step", step);
-        const builder = step.owner;
-        var it = self.queue.first;
         if (self.queue.first == null) {
             return;
         }
-        step.result_cached = true;
-        const dest = try std.fs.cwd().makeOpenPath(builder.pathFromRoot(self.dest_path), .{});
-        const realdestpath = try dest.realpathAlloc(builder.allocator, ".");
+        var it = self.queue.first;
+        var manifest = step.owner.cache.obtain();
+        defer manifest.deinit();
+        manifest.hash.addBytes("wlscan000");
         while (it) |node| : (it = node.next) {
-            if (node.data.system) {
-
-                var buf: [2048]u8 = undefined;
-                var fba = std.heap.FixedBufferAllocator.init(&buf);
-                const newpath = try std.fs.path.join(fba.allocator(), &.{ self.system_protocol_dir.?, node.data.xml });
-                node.data.xml = newpath;
+            _ = try manifest.addFile(node.data.xml, null);
+        }
+        self.step.result_cached = try manifest.hit();
+        const dest = try step.owner.cache_root.join(step.owner.allocator, &.{"wl-gen", &manifest.final()});
+        self.dest_path.path = dest;
+        it = self.queue.first;
+        var dest_dir = try std.fs.cwd().makeOpenPath(dest, .{});
+        defer dest_dir.close();
+        while (it) |node| : (it = node.next) {
+            if (!self.step.result_cached) {
+                self.process(&node.data, dest_dir) catch |err| {
+                    std.log.err("failed to process protocol {s}", .{node.data.xml});
+                    return err;
+                };
             }
-            self.process(&node.data, &dest, realdestpath) catch |err| {
-                std.log.err("failed to process protocol {s}", .{node.data.xml});
-                return err;
-            };
+            // Need to fix the generatedfiles for the c sources
+            const name = std.fs.path.stem(node.data.xml);
+            const namefile = try std.mem.concat(step.owner.allocator, u8, &.{name, ".c"});
+            node.data.file.path = step.owner.pathJoin(&.{dest, namefile});
+        }
+        if (!self.step.result_cached) {
+            try manifest.writeManifest();
         }
     }
 };
 
-pub fn build(b: *std.build.Builder) !void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const nwl = b.addStaticLibrary(.{ .name = "nwl", .target = target, .optimize = optimize });
-    _ = b.addModule("nwl", .{ .source_file = .{ .path = "zig/nwl.zig" } });
+    const nwl = b.addStaticLibrary(.{ .name = "nwl_lib", .link_libc = true, .target = target, .optimize = optimize,});
+    const mod = b.addModule("nwl", .{.root_source_file = .{ .path = "zig/nwl.zig" }});
+    mod.linkLibrary(nwl);
     // Maybe have an OptionsStep as well so features are reflected in nwl.zig?
     const egl = b.option(bool, "egl", "EGL support") orelse false;
     const cairo = b.option(bool, "cairo", "Cairo renderer") orelse false;
@@ -185,8 +192,6 @@ pub fn build(b: *std.build.Builder) !void {
         "unstable/xdg-output/xdg-output-unstable-v1.xml",
     });
     scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"), false);
-    nwl.linkLibC();
-    nwl.linkSystemLibrary("wayland-client");
     nwl.addIncludePath(.{.path = "."});
     nwl.addCSourceFiles(.{ .files = &.{
         "src/shell.c",
