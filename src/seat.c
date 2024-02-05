@@ -128,8 +128,9 @@ static void update_keyboard_event_compose(struct nwl_seat *seat) {
 	}
 }
 
-static void nwl_seat_send_key_repeat(struct nwl_state *state, void *data) {
+static void nwl_seat_send_key_repeat(struct nwl_state *state, uint32_t events, void *data) {
 	UNUSED(state);
+	UNUSED(events);
 	struct nwl_seat *seat = data;
 	uint64_t expirations;
 	read(seat->keyboard_repeat_fd, &expirations, sizeof(uint64_t));
@@ -263,7 +264,7 @@ static void handle_keyboard_repeat(
 	seat->keyboard_repeat_delay = delay;
 	if (seat->keyboard_repeat_fd == -1) {
 		seat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-		nwl_poll_add_fd(seat->state, seat->keyboard_repeat_fd, nwl_seat_send_key_repeat, seat);
+		nwl_poll_add_fd(seat->state, seat->keyboard_repeat_fd, 0x001, nwl_seat_send_key_repeat, seat);
 	}
 }
 

@@ -85,14 +85,14 @@ struct nwl_state {
 	const char *xdg_app_id; // This app_id is conveniently automagically set on xdg_toplevels, if not null
 };
 
-typedef void (*nwl_poll_callback_t)(struct nwl_state *state, void* data);
+typedef void (*nwl_poll_callback_t)(struct nwl_state *state, uint32_t events, void* data);
 
 char nwl_wayland_init(struct nwl_state *state);
 void nwl_wayland_uninit(struct nwl_state *state);
 void nwl_wayland_run(struct nwl_state *state);
 void nwl_state_add_sub(struct nwl_state *state, struct nwl_state_sub *sub);
 struct nwl_state_sub *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl);
-void nwl_poll_add_fd(struct nwl_state *state, int fd, // pollin, pollout, edge trigger, etc?
+void nwl_poll_add_fd(struct nwl_state *state, int fd, uint32_t events,
 	nwl_poll_callback_t callback, void *data);
 bool nwl_poll_dispatch(struct nwl_state *state, int timeout);
 void nwl_poll_del_fd(struct nwl_state *state, int fd);

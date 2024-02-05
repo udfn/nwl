@@ -297,17 +297,17 @@ struct nwl_poll_data {
 	nwl_poll_callback_t callback;
 };
 
-void nwl_poll_add_fd(struct nwl_state *state, int fd,
+void nwl_poll_add_fd(struct nwl_state *state, int fd, uint32_t events,
 		nwl_poll_callback_t callback, void *data) {
 	state->poll->ev = realloc(state->poll->ev, sizeof(struct epoll_event)* ++state->poll->numfds);
 	struct epoll_event ep;
-	struct nwl_poll_data *polldata = calloc(1,sizeof(struct nwl_poll_data));
+	struct nwl_poll_data *polldata = calloc(1, sizeof(struct nwl_poll_data));
 	wl_list_insert(&state->poll->data, &polldata->link);
 	polldata->userdata = data;
 	polldata->fd = fd;
 	polldata->callback = callback;
 	ep.data.ptr = polldata;
-	ep.events = EPOLLIN;
+	ep.events = events;
 	epoll_ctl(state->poll->epfd, EPOLL_CTL_ADD, fd, &ep);
 }
 
@@ -332,8 +332,9 @@ void surface_mark_dirty(struct nwl_surface *surface) {
 	eventfd_write(surface->state->poll->dirt_eventfd, 1);
 }
 
-static void nwl_wayland_poll_display(struct nwl_state *state, void *data) {
+static void nwl_wayland_poll_display(struct nwl_state *state, uint32_t events, void *data) {
 	UNUSED(data);
+	UNUSED(events);
 	if (wl_display_dispatch(state->wl.display) == -1) {
 		perror("Fatal Wayland error");
 		state->has_errored = true;
@@ -362,8 +363,9 @@ static bool handle_dirty_surfaces(struct nwl_state *state) {
 	return false;
 }
 
-static void nwl_wayland_handle_dirt(struct nwl_state *state, void *data) {
+static void nwl_wayland_handle_dirt(struct nwl_state *state, uint32_t events, void *data) {
 	UNUSED(data);
+	UNUSED(events);
 	// Yeah sure, errors might happen. Who cares?
 	eventfd_read(state->poll->dirt_eventfd, NULL);
 	while(handle_dirty_surfaces(state)) { }
@@ -378,7 +380,7 @@ bool nwl_poll_dispatch(struct nwl_state *state, int timeout) {
 	}
 	for (int i = 0; i < nfds; i++) {
 		struct nwl_poll_data *data = state->poll->ev[i].data.ptr;
-		data->callback(state, data->userdata);
+		data->callback(state, state->poll->ev[i].events, data->userdata);
 	}
 	return true;
 }
@@ -424,8 +426,8 @@ char nwl_wayland_init(struct nwl_state *state) {
 	wl_list_init(&state->poll->data);
 	state->poll->epfd = epoll_create1(0);
 	state->poll->dirt_eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-	nwl_poll_add_fd(state, wl_display_get_fd(state->wl.display), nwl_wayland_poll_display, NULL);
-	nwl_poll_add_fd(state, state->poll->dirt_eventfd, nwl_wayland_handle_dirt, NULL);
+	nwl_poll_add_fd(state, wl_display_get_fd(state->wl.display), EPOLLIN, nwl_wayland_poll_display, NULL);
+	nwl_poll_add_fd(state, state->poll->dirt_eventfd, EPOLLIN, nwl_wayland_handle_dirt, NULL);
 
 	// Ask xdg output manager for xdg_outputs in case wl_output globals were sent before it.
 	if (state->wl.xdg_output_manager) {

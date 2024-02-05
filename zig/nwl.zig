@@ -557,7 +557,7 @@ pub const Surface = extern struct {
 };
 
 pub const State = extern struct {
-    pub const PollCallbackFn = *const fn (*State, ?*anyopaque) callconv(.C) void;
+    pub const PollCallbackFn = *const fn (*State, u32, ?*anyopaque) callconv(.C) void;
     pub const BoundGlobalKind = enum(u32) { output = 0, seat };
     wl: extern struct {
         display: ?*WlDisplay = null,
@@ -596,7 +596,7 @@ pub const State = extern struct {
     extern fn nwl_surface_create(state: *State, title: [*:0]const u8) ?*Surface;
     extern fn nwl_state_add_sub(state: *State, sub: *StateSub) void;
     extern fn nwl_state_get_sub(state: *State, impl: *StateSubImpl) ?*StateSub;
-    extern fn nwl_poll_add_fd(state: *State, fd: c_int, callback: PollCallbackFn, data: ?*anyopaque) void;
+    extern fn nwl_poll_add_fd(state: *State, fd: c_int, events: u32, callback: PollCallbackFn, data: ?*anyopaque) void;
     extern fn nwl_poll_del_fd(state: *State, fd: c_int) void;
     extern fn nwl_poll_get_fd(state: *State) std.os.fd_t;
     extern fn nwl_poll_dispatch(state: *State, timeout: c_int) bool;
