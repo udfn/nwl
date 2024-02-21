@@ -1,0 +1,11 @@
+.{
+	.name = "nwl",
+	.version = "0.5.0",
+	.paths = .{""},
+	.dependencies = .{
+		.wlscannerstep = .{
+			.url = "https://github.com/udfn/wlscanner-zbs-step/archive/a0f736c3a633355a7fd726c1b94db3c1d3a56d92.tar.gz",
+			.hash = "12201c29f1d8204549b6967200ddf8ebe680ddfd0fcab6b415d39f98d072b97df961"
+		}
+	 }
+}
