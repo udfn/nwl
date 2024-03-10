@@ -108,7 +108,8 @@ enum nwl_pointer_axis {
 
 // These are the shapes from the cursor shape protocol, just renamed.
 enum nwl_cursor_shape {
-	NWL_CURSOR_SHAPE_DEFAULT = 1,
+	NWL_CURSOR_SHAPE_NONE = 0,
+	NWL_CURSOR_SHAPE_DEFAULT,
 	NWL_CURSOR_SHAPE_CONTEXT_MENU,
 	NWL_CURSOR_SHAPE_HELP,
 	NWL_CURSOR_SHAPE_POINTER,

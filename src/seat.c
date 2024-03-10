@@ -316,6 +316,10 @@ const char *xcursor_shapes[] = {
 };
 
 void nwl_seat_set_pointer_shape(struct nwl_seat *seat, uint32_t shape) {
+	if (shape == NWL_CURSOR_SHAPE_NONE) {
+		wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, NULL, 0, 0);
+		return;
+	}
 	if (seat->state->wl.cursor_shape_manager) {
 		if (!seat->pointer_surface.shape_device) {
 			seat->pointer_surface.shape_device = wp_cursor_shape_manager_v1_get_pointer(seat->state->wl.cursor_shape_manager, seat->pointer);

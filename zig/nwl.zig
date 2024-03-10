@@ -276,7 +276,8 @@ pub const Seat = extern struct {
         keyboard_compose_table: ?*XkbComposeTable,
     };
     const CursorShape = enum(u32) {
-        default = 1,
+        none = 0,
+        default,
         context_menu,
         help,
         pointer,
