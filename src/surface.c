@@ -17,13 +17,9 @@ void surface_mark_dirty(struct nwl_surface *surface);
 
 struct wl_callback_listener callback_listener;
 
-void nwl_surface_render(struct nwl_surface *surface) {
-	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_DRAW;
-	if (surface->states & NWL_SURFACE_STATE_NEEDS_APPLY_SIZE) {
-		surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-		surface->render.impl->apply_size(surface);
-	}
-	surface->render.impl->render(surface);
+void nwl_surface_update(struct nwl_surface *surface) {
+	surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_UPDATE;
+	surface->impl.update(surface);
 }
 
 static void cb_done(void *data, struct wl_callback *cb, uint32_t cb_data) {
@@ -31,8 +27,8 @@ static void cb_done(void *data, struct wl_callback *cb, uint32_t cb_data) {
 	struct nwl_surface *surf = data;
 	surf->wl.frame_cb = NULL;
 	wl_callback_destroy(cb);
-	if (surf->states & NWL_SURFACE_STATE_NEEDS_DRAW) {
-		nwl_surface_render(surf);
+	if (surf->states & NWL_SURFACE_STATE_NEEDS_UPDATE) {
+		nwl_surface_update(surf);
 	}
 }
 
@@ -45,7 +41,7 @@ static void surface_autoscale(struct nwl_surface *surf) {
 	if (surf->scale_preferred) {
 		if (surf->scale != surf->scale_preferred) {
 			surf->scale = surf->scale_preferred;
-			nwl_surface_set_need_draw(surf, true);
+			nwl_surface_set_need_update(surf, true);
 		}
 		return;
 	}
@@ -62,14 +58,14 @@ static void surface_autoscale(struct nwl_surface *surf) {
 	if (scale != surf->scale) {
 		surf->scale = scale;
 		surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-		nwl_surface_set_need_draw(surf, true);
+		nwl_surface_set_need_update(surf, true);
 		// Compositor might not send output events to subsurfaces..
 		struct nwl_surface *sub;
 		wl_list_for_each(sub, &surf->subsurfaces, link) {
 			if (!(sub->flags & NWL_SURFACE_FLAG_NO_AUTOSCALE) && sub->scale != scale) {
 				sub->scale = scale;
 				sub->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
-				nwl_surface_set_need_draw(sub, true);
+				nwl_surface_set_need_update(sub, true);
 			}
 		}
 	}
@@ -136,6 +132,7 @@ static const struct wl_surface_listener surface_listener = {
 void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title) {
 	surface->state = state;
 	surface->frame = 0;
+	surface->defer_update = false;
 	surface->wl.surface = NULL;
 	surface->wl.xdg_surface = NULL;
 	surface->wl.frame_cb = NULL;
@@ -204,7 +201,6 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	}
 	wl_list_remove(&surface->link);
 
-	surface->render.impl->destroy(surface);
 	if (surface->outputs.outputs) {
 		free(surface->outputs.outputs);
 	}
@@ -287,22 +283,21 @@ void nwl_surface_request_callback(struct nwl_surface *surface) {
 	}
 }
 
-void nwl_surface_swapbuffers(struct nwl_surface *surface, int32_t x, int32_t y) {
+void nwl_surface_buffer_submitted(struct nwl_surface *surface) {
 	surface->frame++;
 	nwl_surface_request_callback(surface);
 	if (surface->configure_serial) {
 		nwl_surface_ack_configure(surface);
 	}
-	surface->render.impl->swap_buffers(surface, x, y);
 }
 
-void nwl_surface_set_need_draw(struct nwl_surface *surface, bool render) {
-	surface->states |= NWL_SURFACE_STATE_NEEDS_DRAW;
-	if (surface->wl.frame_cb || surface->render.rendering || surface->states & NWL_SURFACE_STATE_NEEDS_CONFIGURE) {
+void nwl_surface_set_need_update(struct nwl_surface *surface, bool now) {
+	surface->states |= NWL_SURFACE_STATE_NEEDS_UPDATE;
+	if (surface->wl.frame_cb || surface->defer_update || surface->states & NWL_SURFACE_STATE_NEEDS_CONFIGURE) {
 		return;
 	}
-	if (render) {
-		nwl_surface_render(surface);
+	if (now) {
+		nwl_surface_update(surface);
 		return;
 	}
 	surface_mark_dirty(surface);

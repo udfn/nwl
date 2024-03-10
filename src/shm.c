@@ -31,7 +31,7 @@ void nwl_shm_pool_finish(struct nwl_shm_pool *shm) {
 	}
 }
 
-void nwl_shm_set_size(struct nwl_shm_pool *shm, struct nwl_state *state, size_t pool_size) {
+void nwl_shm_set_size(struct nwl_shm_pool *shm, struct wl_shm *wl_shm, size_t pool_size) {
 	if (shm->size != pool_size) {
 		if (shm->fd == -1) {
 			shm->fd = nwl_allocate_shm_file(pool_size);
@@ -41,7 +41,7 @@ void nwl_shm_set_size(struct nwl_shm_pool *shm, struct nwl_state *state, size_t 
 			ftruncate(shm->fd, pool_size);
 		}
 		shm->data = mmap(NULL, pool_size, PROT_READ|PROT_WRITE, MAP_SHARED, shm->fd, 0);
-		shm->pool = wl_shm_create_pool(state->wl.shm, shm->fd, pool_size);
+		shm->pool = wl_shm_create_pool(wl_shm, shm->fd, pool_size);
 		shm->size = pool_size;
 	}
 }
@@ -89,7 +89,6 @@ static bool try_check_buffer(struct nwl_shm_bufferman *bm, int buf_idx) {
 int nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman) {
 	for (int i = 0; i < bufferman->num_slots; i++) {
 		if (try_check_buffer(bufferman, i)) {
-			bufferman->buffers[i].flags |= NWL_SHM_BUFFER_ACQUIRED;
 			return i;
 		}
 	}
@@ -100,18 +99,18 @@ void nwl_shm_buffer_release(struct nwl_shm_buffer *buffer) {
 	buffer->flags = (buffer->flags & ~NWL_SHM_BUFFER_ACQUIRED);
 }
 
-void nwl_shm_bufferman_set_slots(struct nwl_shm_bufferman *bufferman, struct nwl_state *state, uint8_t num_slots) {
+void nwl_shm_bufferman_set_slots(struct nwl_shm_bufferman *bufferman, struct wl_shm *wl_shm, uint8_t num_slots) {
 	num_slots = num_slots < 1 ? 1 :
 		(num_slots > NWL_SHM_BUFFERMAN_MAX_BUFFERS ? NWL_SHM_BUFFERMAN_MAX_BUFFERS : num_slots);
 	if (bufferman->num_slots != num_slots) {
 		bufferman->num_slots = num_slots;
 		if (bufferman->stride) {
-			nwl_shm_bufferman_resize(bufferman, state, bufferman->width, bufferman->height, bufferman->stride, bufferman->format);
+			nwl_shm_bufferman_resize(bufferman, wl_shm, bufferman->width, bufferman->height, bufferman->stride, bufferman->format);
 		}
 	}
 }
 
-void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct nwl_state *state,
+void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct wl_shm *wl_shm,
 	uint32_t width, uint32_t height, uint32_t stride, uint32_t format) {
 	size_t new_min_pool_size = (stride * height) * bm->num_slots;
 	bool in_use = false;
@@ -125,7 +124,7 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct nwl_state *st
 			nwl_shm_pool_finish(&bm->pool);
 		}
 		// Add some extra so if the surface grows slightly the pool can be reused
-		nwl_shm_set_size(&bm->pool, state, new_min_pool_size+stride*30);
+		nwl_shm_set_size(&bm->pool, wl_shm, new_min_pool_size+stride*30);
 	}
 	bm->width = width;
 	bm->height = height;

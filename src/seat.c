@@ -397,7 +397,7 @@ bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *sur
 	seat->pointer_surface.nwl = surface;
 	wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, surface->wl.surface, hotspot_x, hotspot_y);
 	if (surface) {
-		nwl_surface_set_need_draw(surface, true);
+		nwl_surface_set_need_update(surface, true);
 	}
 	return true;
 }
@@ -970,7 +970,7 @@ bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *wl_data_s
 	wl_data_device_start_drag(seat->data_device.wl, wl_data_source, seat->pointer_focus->wl.surface,
 			icon ? icon->wl.surface: NULL, seat->pointer_event->serial);
 	if (icon) {
-		nwl_surface_set_need_draw(icon, true);
+		nwl_surface_set_need_update(icon, true);
 	}
 	return true;
 }

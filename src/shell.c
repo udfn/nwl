@@ -19,7 +19,7 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 	}
 	surf->configure_serial = serial;
 	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
-	nwl_surface_set_need_draw(surf, true);
+	nwl_surface_set_need_update(surf, true);
 }
 
 static void handle_layer_closed(void *data, struct zwlr_layer_surface_v1 *layer) {
@@ -38,7 +38,7 @@ static void handle_surface_configure(void *data, struct xdg_surface *xdg_surface
 	UNUSED(xdg_surface);
 	surf->configure_serial = serial;
 	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
-	nwl_surface_set_need_draw(surf, true);
+	nwl_surface_set_need_update(surf, true);
 }
 
 static const struct xdg_surface_listener surface_listener = {

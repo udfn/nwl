@@ -335,7 +335,7 @@ pub const Seat = extern struct {
     pointer_surface: PointerSurface,
     pointer_event: ?*PointerEvent,
     name: ?[*:0]u8,
-    userdata:?*anyopaque,
+    userdata: ?*anyopaque,
 
     extern fn nwl_seat_set_pointer_cursor(seat: *Seat, cursor: [*:0]const u8) void;
     extern fn nwl_seat_set_pointer_shape(seat: *Seat, shape: CursorShape) void;
@@ -374,17 +374,31 @@ pub const DataOffer = extern struct {
     mime: WlArray([*:0]u8),
     offer: ?*WlDataOffer,
 };
-pub const CairoSurface = extern struct {
-    const cairo_surface_t = opaque {};
-    const cairo_t = opaque {};
-    ctx: *cairo_t,
-    surface: *cairo_surface_t,
-    rerender: bool,
+
+pub const Cairo = struct {
+    pub const CairoSurface = extern struct {
+        const cairo_surface_t = opaque {};
+        const cairo_t = opaque {};
+        ctx: *cairo_t,
+        surface: *cairo_surface_t,
+        rerender: bool,
+    };
+    pub const Renderer = extern struct {
+        shm: ShmBufferMan,
+        cairo_surfaces: [ShmBufferMan.max_buffers]CairoSurface,
+        next_buffer: c_int,
+        prev_buffer: c_int,
+
+        extern fn nwl_cairo_renderer_init(renderer: *Renderer) void;
+        pub const init = nwl_cairo_renderer_init;
+        extern fn nwl_cairo_renderer_finish(renderer: *Renderer) void;
+        pub const deinit = nwl_cairo_renderer_finish;
+        extern fn nwl_cairo_renderer_submit(renderer: *Renderer, surface: *Surface, x: i32, y: i32) void;
+        pub const submit = nwl_cairo_renderer_submit;
+        extern fn nwl_cairo_renderer_get_surface(renderer: *Renderer, surface: *Surface, copyprevious: bool) ?*CairoSurface;
+        pub const getSurface = nwl_cairo_renderer_get_surface;
+    };
 };
-const nwl_surface_cairo_render_t = *const fn (*Surface, *CairoSurface) callconv(.C) void;
-const CairoRendererFlags = packed struct(c_int) { damage_tracking: bool = false, _pad: i31 = 0 };
-extern fn nwl_surface_renderer_cairo(surface: *Surface, renderfunc: nwl_surface_cairo_render_t, flags: CairoRendererFlags) void;
-pub const surfaceRendererCairo = nwl_surface_renderer_cairo;
 
 extern fn wl_proxy_marshal(p: ?*WlProxy, opcode: u32, ...) void;
 
@@ -396,8 +410,7 @@ pub const Surface = extern struct {
     const Flags = packed struct(u32) {
         no_autoscale: bool = false,
         no_autocursor: bool = false,
-        nwl_frees: bool = false,
-        padding: u29 = 0,
+        padding: u30 = 0,
     };
 
     const SurfaceStates = packed struct(u32) {
@@ -410,26 +423,15 @@ pub const Surface = extern struct {
         tiled_top: bool,
         tiled_bottom: bool,
         csd: bool,
-        needs_draw: bool,
+        needs_update: bool,
         needs_applysize: bool,
         destroy: bool,
         needs_configure: bool,
         _padding: u19,
     };
 
-    pub const Renderer = extern struct {
-        pub const Impl = extern struct {
-            // Bug or feature? Using GenericSurfaceFn here is a dependency loop error..
-            apply_size: *const fn (*Surface) callconv(.C) void,
-            swap_buffers: *const fn (*Surface, i32, i32) callconv(.C) void,
-            render: *const fn (*Surface) callconv(.C) void,
-            destroy: *const fn (*Surface) callconv(.C) void,
-        };
-        impl: ?*const Impl = null,
-        data: ?*anyopaque = undefined,
-        rendering: bool = false,
-    };
     const SurfaceImpl = extern struct {
+        update: ?GenericSurfaceFn = null,
         destroy: ?GenericSurfaceFn = null,
         input_pointer: ?*const fn (*Surface, *Seat, *PointerEvent) callconv(.C) void = null,
         input_keyboard: ?*const fn (*Surface, *Seat, *KeyboardEvent) callconv(.C) void = null,
@@ -473,7 +475,6 @@ pub const Surface = extern struct {
         xdg_surface: ?*XdgSurface,
         frame_cb: ?*WlCallback,
     } = undefined,
-    renderer: Renderer = .{},
     width: u32 = undefined,
     height: u32 = undefined,
     desired_width: u32 = 640,
@@ -492,6 +493,7 @@ pub const Surface = extern struct {
     states: SurfaceStates = undefined,
     title: ?[*:0]u8 = null,
     role_id: RoleId = undefined,
+    defer_update: bool = undefined,
     role: RoleUnion = undefined,
     frame: u32 = 0,
     impl: SurfaceImpl = .{},
@@ -499,9 +501,8 @@ pub const Surface = extern struct {
     extern fn nwl_surface_destroy_later(surface: *Surface) void;
     extern fn nwl_surface_set_size(surface: *Surface, width: u32, height: u32) void;
     extern fn nwl_surface_set_title(surface: *Surface, title: ?[*:0]const u8) void;
-    extern fn nwl_surface_swapbuffers(surface: *Surface, x: i32, y: i32) void;
-    extern fn nwl_surface_render(surface: *Surface) void;
-    extern fn nwl_surface_set_need_draw(surface: *Surface, rendernow: bool) void;
+    extern fn nwl_surface_update(surface: *Surface) void;
+    extern fn nwl_surface_set_need_update(surface: *Surface, now: bool) void;
     extern fn nwl_surface_role_subsurface(surface: *Surface, parent: *Surface) bool;
     extern fn nwl_surface_role_layershell(surface: *Surface, output: ?*WlOutput, layer: u32) bool;
     extern fn nwl_surface_role_toplevel(surface: *Surface) bool;
@@ -537,14 +538,9 @@ pub const Surface = extern struct {
         }
     }
     pub const setSize = nwl_surface_set_size;
-    pub const render = nwl_surface_render;
+    pub const update = nwl_surface_update;
     pub const setTitle = nwl_surface_set_title;
-    pub fn swapBuffers(self: *Surface, x: i32, y: i32) void {
-        nwl_surface_swapbuffers(self, x, y);
-    }
-    pub fn setNeedDraw(self: *Surface, rendernow: bool) void {
-        nwl_surface_set_need_draw(self, rendernow);
-    }
+    pub const setNeedUpdate = nwl_surface_set_need_update;
     pub fn destroy(self: *Surface) void {
         nwl_surface_destroy(self);
     }
@@ -663,9 +659,9 @@ pub const ShmBufferMan = extern struct {
         }
         return error.NoAvailableBuffer;
     }
-    extern fn nwl_shm_bufferman_set_slots(bufferman: *ShmBufferMan, state: *State, num_slots: u8) void;
+    extern fn nwl_shm_bufferman_set_slots(bufferman: *ShmBufferMan, wl_shm: *WlShm, num_slots: u8) void;
     pub const setSlots = nwl_shm_bufferman_set_slots;
-    extern fn nwl_shm_bufferman_resize(bufferman: *ShmBufferMan, state: *State, width: u32, height: u32, stride: u32, format: u32) void;
+    extern fn nwl_shm_bufferman_resize(bufferman: *ShmBufferMan, wl_shm: *WlShm, width: u32, height: u32, stride: u32, format: u32) void;
     pub const resize = nwl_shm_bufferman_resize;
     extern fn nwl_shm_bufferman_finish(bufferman: *ShmBufferMan) void;
     pub const finish = nwl_shm_bufferman_finish;
