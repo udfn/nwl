@@ -593,7 +593,6 @@ pub const State = extern struct {
     extern fn nwl_wayland_init(state: *State) u8;
     extern fn nwl_wayland_uninit(state: *State) void;
     extern fn nwl_wayland_run(state: *State) void;
-    extern fn nwl_surface_create(state: *State, title: [*:0]const u8) ?*Surface;
     extern fn nwl_state_add_sub(state: *State, sub: *StateSub) void;
     extern fn nwl_state_get_sub(state: *State, impl: *StateSubImpl) ?*StateSub;
     extern fn nwl_poll_add_fd(state: *State, fd: c_int, events: u32, callback: PollCallbackFn, data: ?*anyopaque) void;
@@ -614,9 +613,6 @@ pub const State = extern struct {
     }
     pub const waylandUninit = nwl_wayland_uninit;
     pub const run = nwl_wayland_run;
-    pub fn createSurface(self: *State, title: [*:0]const u8) Error!*Surface {
-        return nwl_surface_create(self, title) orelse Error.SurfaceCreateFailed;
-    }
 };
 
 pub const ShmPool = extern struct {

@@ -163,23 +163,6 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 }
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title) {
-	struct nwl_surface *newsurf = malloc(sizeof(struct nwl_surface));
-	newsurf->flags = NWL_SURFACE_FLAG_NWL_FREES;
-	newsurf->impl.destroy = NULL;
-	newsurf->impl.input_pointer = NULL;
-	newsurf->impl.input_keyboard = NULL;
-	newsurf->impl.dnd = NULL;
-	newsurf->impl.configure = NULL;
-	newsurf->impl.close = NULL;
-	newsurf->desired_height = 480;
-	newsurf->desired_width = 640;
-	newsurf->render.impl = NULL;
-	newsurf->render.rendering = false;
-	nwl_surface_init(newsurf, state, title);
-	return newsurf;
-}
-
 static void nwl_surface_destroy_role(struct nwl_surface *surface) {
 	if (!surface->role_id) {
 		return;
@@ -234,12 +217,8 @@ void nwl_surface_destroy(struct nwl_surface *surface) {
 	if (surface->title) {
 		free(surface->title);
 	}
-	bool should_free = surface->flags & NWL_SURFACE_FLAG_NWL_FREES;
 	if (surface->impl.destroy) {
 		surface->impl.destroy(surface);
-	}
-	if (should_free) {
-		free(surface);
 	}
 }
 

@@ -10,7 +10,6 @@ struct xdg_positioner;
 enum nwl_surface_flags {
 	NWL_SURFACE_FLAG_NO_AUTOSCALE = 1 << 0,
 	NWL_SURFACE_FLAG_NO_AUTOCURSOR = 1 << 1, // ugh, this one shouldn't stay!
-	NWL_SURFACE_FLAG_NWL_FREES = 1 << 2, // nwl calls free() on the surface when destroyed
 };
 
 // This is basically the xdg toplevel states + nwl nonsense..
@@ -132,7 +131,6 @@ struct nwl_surface {
 	} impl;
 };
 
-struct nwl_surface *nwl_surface_create(struct nwl_state *state, const char *title);
 void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title);
 void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
