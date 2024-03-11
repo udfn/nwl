@@ -509,7 +509,7 @@ pub const Surface = extern struct {
     extern fn nwl_surface_role_popup(surface: *Surface, parent: *Surface, positioner: *XdgPositioner) bool;
     extern fn nwl_surface_role_unset(surface: *Surface) void;
     extern fn nwl_surface_init(surface: *Surface, state: *State, title: [*:0]const u8) void;
-
+    extern fn nwl_surface_buffer_submitted(surface: *Surface) void;
     pub fn commit(self: *Surface) void {
         if (@hasDecl(WlSurface, "commit")) {
             self.wl.surface.commit();
@@ -541,15 +541,10 @@ pub const Surface = extern struct {
     pub const update = nwl_surface_update;
     pub const setTitle = nwl_surface_set_title;
     pub const setNeedUpdate = nwl_surface_set_need_update;
-    pub fn destroy(self: *Surface) void {
-        nwl_surface_destroy(self);
-    }
-    pub fn destroyLater(self: *Surface) void {
-        nwl_surface_destroy_later(self);
-    }
-    pub fn unsetRole(self: *Surface) void {
-        nwl_surface_role_unset(self);
-    }
+    pub const bufferSubmitted = nwl_surface_buffer_submitted;
+    pub const destroy = nwl_surface_destroy;
+    pub const destroyLater = nwl_surface_destroy_later;
+    pub const unsetRole = nwl_surface_role_unset;
     pub const init = nwl_surface_init;
 };
 
