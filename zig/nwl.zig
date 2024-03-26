@@ -608,7 +608,7 @@ pub const State = extern struct {
 };
 
 pub const ShmPool = extern struct {
-    fd: std.os.fd_t = -1,
+    fd: std.posix.fd_t = -1,
     data: [*]u8 = undefined,
     pool: ?*WlShmPool = null,
     size: usize = 0,
