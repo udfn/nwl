@@ -589,7 +589,7 @@ pub const State = extern struct {
     extern fn nwl_state_get_sub(state: *State, impl: *StateSubImpl) ?*StateSub;
     extern fn nwl_poll_add_fd(state: *State, fd: c_int, events: u32, callback: PollCallbackFn, data: ?*anyopaque) void;
     extern fn nwl_poll_del_fd(state: *State, fd: c_int) void;
-    extern fn nwl_poll_get_fd(state: *State) std.os.fd_t;
+    extern fn nwl_poll_get_fd(state: *State) std.posix.fd_t;
     extern fn nwl_poll_dispatch(state: *State, timeout: c_int) bool;
 
     pub const addSub = nwl_state_add_sub;
