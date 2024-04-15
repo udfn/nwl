@@ -142,7 +142,7 @@ pub fn WlListHead(comptime linktype: type, comptime field: std.meta.FieldEnum(li
                 if (it.this != it.pos) {
                     const ret = it.pos;
                     it.pos = it.pos.next;
-                    return @fieldParentPtr(linktype, fieldinfo.name, ret);
+                    return @fieldParentPtr(fieldinfo.name, ret);
                 }
                 return null;
             }

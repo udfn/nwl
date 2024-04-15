@@ -53,10 +53,7 @@ pub fn build(b: *std.Build) !void {
     });
     nwl.addConfigHeader(conf);
     b.installArtifact(nwl);
-    nwl.installHeadersDirectoryOptions(.{
-        .source_dir = .{ .path = "nwl" },
-        .install_dir = .header,
-        .install_subdir = "nwl",
+    nwl.installHeadersDirectory(.{.path = "nwl"}, "nwl", .{
         .exclude_extensions = &.{"build"},
     });
 }
