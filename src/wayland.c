@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-#include <wayland-client.h>
+#include <wayland-client-core.h>
 #include <wayland-cursor.h>
 #include <errno.h>
 #include <stdio.h>
@@ -347,13 +347,9 @@ static bool handle_dirty_surfaces(struct nwl_state *state) {
 	struct nwl_surface *surface, *stmp;
 	wl_list_for_each_safe(surface, stmp, &state->surfaces_dirty, dirtlink) {
 		if (surface->states & NWL_SURFACE_STATE_DESTROY) {
-			bool subs = !wl_list_empty(&surface->subsurfaces);
 			nwl_surface_destroy(surface);
-			if (subs) {
-				// Subsurfaces were destroyed.. Start over to be safe!
-				return true;
-			}
-			continue;
+			// This might have destroyed other surfaces. Start over to be safe!
+			return true;
 		} else if (surface->states & NWL_SURFACE_STATE_NEEDS_UPDATE && !surface->wl.frame_cb) {
 			nwl_surface_update(surface);
 		}
@@ -460,8 +456,8 @@ static void poll_destroy(struct nwl_poll *poll) {
 }
 
 void nwl_wayland_uninit(struct nwl_state *state) {
-	struct nwl_surface *surface, *surfacetmp;
-	wl_list_for_each_safe(surface, surfacetmp, &state->surfaces, link) {
+	while (!wl_list_empty(&state->surfaces)) {
+		struct nwl_surface *surface = wl_container_of(state->surfaces.next, surface, link);
 		nwl_surface_destroy(surface);
 	}
 	struct nwl_state_sub *sub, *subtmp;

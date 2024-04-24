@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
 #include <string.h>
-#include <wayland-client.h>
+#include <wayland-client-core.h>
 #include "wlr-layer-shell-unstable-v1.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-shell.h"
@@ -152,6 +152,8 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	surface->states = 0;
 	if (title) {
 		surface->title = strdup(title);
+	} else {
+		surface->title = NULL;
 	}
 	wl_list_init(&surface->subsurfaces);
 	wl_list_init(&surface->dirtlink);

@@ -156,7 +156,7 @@ static void handle_popup_configure(void *data, struct xdg_popup *xdg_popup, int3
 static void handle_popup_done(void *data, struct xdg_popup *xdg_popup) {
 	UNUSED(xdg_popup);
 	struct nwl_surface *surf = data;
-	nwl_surface_destroy_later(surf);
+	nwl_surface_destroy(surf);
 }
 
 static void handle_popup_repositioned(void *data, struct xdg_popup *xdg_popup, uint32_t token) {

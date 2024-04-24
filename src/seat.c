@@ -956,7 +956,6 @@ bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *wl_data_s
 		return false;
 	}
 	// Allow drag origin surface that's not current focus?
-	seat->pointer_event->buttons = 0;
 	// Also need to support touch drag..
 	if (icon) {
 		if (icon->role_id && icon->role_id != NWL_SURFACE_ROLE_DRAGICON) {
@@ -967,6 +966,8 @@ bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *wl_data_s
 			icon->role_id = NWL_SURFACE_ROLE_DRAGICON;
 		}
 	}
+	seat->pointer_event->buttons = 0;
+	seat->pointer_event->buttons_prev = 0;
 	wl_data_device_start_drag(seat->data_device.wl, wl_data_source, seat->pointer_focus->wl.surface,
 			icon ? icon->wl.surface: NULL, seat->pointer_event->serial);
 	if (icon) {
