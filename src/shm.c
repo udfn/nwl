@@ -2,7 +2,8 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <wayland-client.h>
+#include <wayland-client-core.h>
+#include <wayland-client-protocol.h>
 #include "nwl/shm.h"
 #include "nwl/surface.h"
 #include "nwl/nwl.h"

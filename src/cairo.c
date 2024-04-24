@@ -1,4 +1,5 @@
 #include <cairo.h>
+#include <wayland-client-protocol.h>
 #include "nwl/cairo.h"
 #include "nwl/shm.h"
 #include "nwl/nwl.h"

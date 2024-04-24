@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-#include <wayland-client.h>
+#include <wayland-client-core.h>
 #include <wayland-cursor.h>
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>

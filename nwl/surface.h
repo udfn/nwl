@@ -2,7 +2,7 @@
 #define _NWL_SURFACE_H
 #include <stdbool.h>
 #include <stdint.h>
-#include <wayland-client.h>
+#include <wayland-client-core.h>
 
 struct xdg_positioner;
 
