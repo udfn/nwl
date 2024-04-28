@@ -29,6 +29,7 @@ void nwl_cairo_renderer_submit(struct nwl_cairo_renderer *renderer, struct nwl_s
 		x = 0;
 		y = 0;
 	}
+	renderer->shm.buffers[renderer->next_buffer].flags |= NWL_SHM_BUFFER_ACQUIRED;
 	wl_surface_attach(surface->wl.surface, renderer->shm.buffers[renderer->next_buffer].wl_buffer, x, y);
 	renderer->next_buffer = -1;
 	nwl_surface_buffer_submitted(surface);

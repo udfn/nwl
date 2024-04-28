@@ -5,7 +5,6 @@
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 #include "nwl/shm.h"
-#include "nwl/surface.h"
 #include "nwl/nwl.h"
 
 int nwl_allocate_shm_file(size_t size) {
