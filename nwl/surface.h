@@ -5,7 +5,7 @@
 #include <wayland-client-core.h>
 
 struct xdg_positioner;
-
+struct wl_output;
 enum nwl_surface_flags {
 	NWL_SURFACE_FLAG_NO_AUTOSCALE = 1 << 0,
 	NWL_SURFACE_FLAG_NO_AUTOCURSOR = 1 << 1, // ugh, this one shouldn't stay!
