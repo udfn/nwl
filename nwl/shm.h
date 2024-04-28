@@ -59,6 +59,4 @@ void nwl_shm_bufferman_finish(struct nwl_shm_bufferman *bufferman);
 void nwl_shm_get_supported_formats(struct nwl_state *state, uint32_t **formats, uint32_t *len);
 // Set max amount of buffers
 void nwl_shm_bufferman_set_slots(struct nwl_shm_bufferman *bufferman, struct wl_shm *wl_shm, uint8_t num_slots);
-// If a buffer was taken with nwl_shm_bufferman_get_next and was then not sent to the compositor.
-void nwl_shm_buffer_release(struct nwl_shm_buffer* buffer);
 #endif

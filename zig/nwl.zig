@@ -628,10 +628,6 @@ pub const ShmBufferMan = extern struct {
         wl_buffer: ?*WlBuffer = null,
         bufferdata: [*]u8 = undefined,
         flags: Flags = .{},
-
-        pub fn release(self: *Buffer) void {
-            self.flags.acquired = false;
-        }
     };
     pub const RendererImpl = extern struct {
         buffer_create: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.C) void,

@@ -95,10 +95,6 @@ int nwl_shm_bufferman_get_next(struct nwl_shm_bufferman *bufferman) {
 	return -1;
 }
 
-void nwl_shm_buffer_release(struct nwl_shm_buffer *buffer) {
-	buffer->flags = (buffer->flags & ~NWL_SHM_BUFFER_ACQUIRED);
-}
-
 void nwl_shm_bufferman_set_slots(struct nwl_shm_bufferman *bufferman, struct wl_shm *wl_shm, uint8_t num_slots) {
 	num_slots = num_slots < 1 ? 1 :
 		(num_slots > NWL_SHM_BUFFERMAN_MAX_BUFFERS ? NWL_SHM_BUFFERMAN_MAX_BUFFERS : num_slots);

@@ -6,10 +6,7 @@
 #include "nwl/surface.h"
 
 static void nwl_cairo_renderer_set_size(struct nwl_cairo_renderer *renderer, struct wl_shm *wl_shm, uint32_t width, uint32_t height) {
-	// If a buffer is queued up release it.
-	// This should probably be more automagic..
 	if (renderer->next_buffer != -1) {
-		nwl_shm_buffer_release(&renderer->shm.buffers[renderer->next_buffer]);
 		renderer->next_buffer = -1;
 	}
 	renderer->prev_buffer = -1;
