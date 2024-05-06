@@ -87,7 +87,8 @@ static void handle_output_done(
 	if (nwloutput->is_done > 0) {
 		nwloutput->is_done--;
 		if (!nwloutput->is_done && nwloutput->state->events.global_bound) {
-			nwloutput->state->events.global_bound(NWL_BOUND_GLOBAL_OUTPUT, nwloutput);
+			struct nwl_bound_global global = { .global.output = nwloutput, .kind = NWL_BOUND_GLOBAL_OUTPUT };
+			nwloutput->state->events.global_bound(&global);
 		}
 	}
 }
@@ -178,7 +179,8 @@ static const struct zxdg_output_v1_listener xdg_output_listener = {
 static void nwl_output_destroy(void *glob) {
 	struct nwl_output *output = glob;
 	if (output->state->events.global_destroy) {
-		output->state->events.global_destroy(NWL_BOUND_GLOBAL_OUTPUT, output);
+		struct nwl_bound_global global = { .global.output = output, .kind = NWL_BOUND_GLOBAL_OUTPUT };
+		output->state->events.global_destroy(&global);
 	}
 	if (output->name) {
 		free(output->name);

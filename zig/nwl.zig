@@ -550,7 +550,14 @@ pub const Surface = extern struct {
 
 pub const State = extern struct {
     pub const PollCallbackFn = *const fn (*State, u32, ?*anyopaque) callconv(.C) void;
-    pub const BoundGlobalKind = enum(u32) { output = 0, seat };
+    pub const BoundGlobal = extern struct {
+        pub const Kind = enum(c_int) { output = 0, seat };
+        kind:Kind,
+        global:extern union{
+            output:*Output,
+            seat:*Seat,
+        }
+    };
     wl: extern struct {
         display: ?*WlDisplay = null,
         registry: ?*WlRegistry = null,
@@ -576,8 +583,8 @@ pub const State = extern struct {
     run_with_zero_surfaces: bool = false,
     poll: ?*Poll = null,
     events: extern struct {
-        global_bound: ?*const fn (kind: BoundGlobalKind, data: *anyopaque) callconv(.C) void = null,
-        global_destroy: ?*const fn (kind: BoundGlobalKind, data: *anyopaque) callconv(.C) void = null,
+        global_bound: ?*const fn (global: *const BoundGlobal) callconv(.C) void = null,
+        global_destroy: ?*const fn (global: *const BoundGlobal) callconv(.C) void = null,
         global_add: ?*const fn (*State, *WlRegistry, u32, [*:0]const u8, u32) callconv(.C) bool = null,
         global_remove: ?*const fn (*State, *WlRegistry, u32) callconv(.C) void = null,
     } = .{},

@@ -43,6 +43,14 @@ enum nwl_bound_global_kind {
 	NWL_BOUND_GLOBAL_SEAT
 };
 
+struct nwl_bound_global {
+	enum nwl_bound_global_kind kind;
+	union {
+		struct nwl_output *output;
+		struct nwl_seat *seat;
+	} global;
+};
+
 struct nwl_state {
 	struct {
 		struct wl_display *display;
@@ -73,9 +81,9 @@ struct nwl_state {
 	struct {
 		// A global has been bound by nwl!
 		// kind is nwl_bound_global_kind
-		void (*global_bound)(uint32_t kind, void *data);
+		void (*global_bound)(const struct nwl_bound_global *global);
 		// The global is about to be destroyed!
-		void (*global_destroy)(uint32_t kind, void *data);
+		void (*global_destroy)(const struct nwl_bound_global *global);
 		// A wild global appears! Return true to not have nwl take care of it!
 		bool (*global_add)(struct nwl_state *state, struct wl_registry *registry, uint32_t name,
 			const char *interface, uint32_t version);
