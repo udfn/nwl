@@ -8,7 +8,7 @@
 #include "nwl/nwl.h"
 
 int nwl_allocate_shm_file(size_t size) {
-	int fd = memfd_create("nwl shm", MFD_CLOEXEC);
+	int fd = memfd_create("nwl shm", MFD_CLOEXEC | MFD_ALLOW_SEALING | MFD_NOEXEC_SEAL);
 	if (fd < 0)
 		return -1;
 	int ret;
