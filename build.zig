@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const nwl = b.addStaticLibrary(.{ .name = "nwl_lib", .link_libc = true, .target = target, .optimize = optimize,});
-    const mod = b.addModule("nwl", .{.root_source_file = .{ .path = "zig/nwl.zig" }});
+    const mod = b.addModule("nwl", .{.root_source_file = b.path("zig/nwl.zig")});
     mod.linkLibrary(nwl);
     // Maybe have an OptionsStep as well so features are reflected in nwl.zig?
     const egl = b.option(bool, "egl", "EGL support") orelse false;
@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) !void {
         "unstable/xdg-output/xdg-output-unstable-v1.xml",
     });
     scannerstep.addProtocol(b.pathFromRoot("protocol/wlr-layer-shell-unstable-v1.xml"), false);
-    nwl.addIncludePath(.{.path = "."});
+    nwl.addIncludePath(b.path("."));
     nwl.addCSourceFiles(.{ .files = &.{
         "src/shell.c",
         "src/shm.c",
@@ -33,19 +33,19 @@ pub fn build(b: *std.Build) !void {
     if (seat) {
         nwl.linkSystemLibrary("xkbcommon");
         nwl.linkSystemLibrary("wayland-cursor");
-        nwl.addCSourceFile(.{.file = .{.path = "src/seat.c"}, .flags = &.{}});
+        nwl.addCSourceFile(.{.file = b.path("src/seat.c"), .flags = &.{}});
         scannerstep.addSystemProtocols(&.{
             "staging/cursor-shape/cursor-shape-v1.xml",
             "unstable/tablet/tablet-unstable-v2.xml",
         });
     }
     if (egl) {
-        nwl.addCSourceFile(.{.file = .{.path = "src/egl.c"}, .flags = &.{}});
+        nwl.addCSourceFile(.{.file = b.path("src/egl.c"), .flags = &.{}});
         nwl.linkSystemLibrary("wayland-egl");
         nwl.linkSystemLibrary("epoxy");
     }
     if (cairo) {
-        nwl.addCSourceFile(.{.file = .{.path = "src/cairo.c"}, .flags = &.{}});
+        nwl.addCSourceFile(.{.file = b.path("src/cairo.c"), .flags = &.{}});
         nwl.linkSystemLibrary("cairo");
     }
     const conf = b.addConfigHeader(.{ .include_path = "nwl/config.h" }, .{
@@ -53,7 +53,7 @@ pub fn build(b: *std.Build) !void {
     });
     nwl.addConfigHeader(conf);
     b.installArtifact(nwl);
-    nwl.installHeadersDirectory(.{.path = "nwl"}, "nwl", .{
+    nwl.installHeadersDirectory(b.path("nwl"), "nwl", .{
         .exclude_extensions = &.{"build"},
     });
 }
