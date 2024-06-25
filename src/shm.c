@@ -47,7 +47,9 @@ void nwl_shm_set_size(struct nwl_shm_pool *shm, struct wl_shm *wl_shm, size_t po
 }
 
 static void handle_buffer_release(void *data, struct wl_buffer *buffer) {
-	(void)(buffer); // unused!
+	if (buffer == NULL) {
+		return;
+	}
 	struct nwl_shm_buffer *nwlbuf = data;
 	nwlbuf->flags = (nwlbuf->flags & ~NWL_SHM_BUFFER_ACQUIRED);
 }
@@ -66,11 +68,10 @@ static void destroy_buffer(int buf_idx, struct nwl_shm_bufferman *bufferman) {
 static bool try_check_buffer(struct nwl_shm_bufferman *bm, int buf_idx) {
 	struct nwl_shm_buffer *buf = &bm->buffers[buf_idx];
 	if (buf->wl_buffer) {
-		if (buf->flags & NWL_SHM_BUFFER_ACQUIRED) {
-			return false;
-		}
 		if (buf->flags & NWL_SHM_BUFFER_DESTROY) {
 			destroy_buffer(buf_idx, bm);
+		} else if (buf->flags & NWL_SHM_BUFFER_ACQUIRED) {
+			return false;
 		} else {
 			return true;
 		}
@@ -114,7 +115,7 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct wl_shm *wl_sh
 		bm->buffers[i].flags |= NWL_SHM_BUFFER_DESTROY;
 		in_use |= bm->buffers[i].flags & NWL_SHM_BUFFER_ACQUIRED;
 	}
-	if (new_min_pool_size > bm->pool.size || (int)new_min_pool_size < (int)bm->pool.size-(512*1024)) {
+	if (in_use || new_min_pool_size > bm->pool.size || (int)new_min_pool_size < (int)bm->pool.size-(512*1024)) {
 		// If any buffer is currently used by the compositor create a new shm file instead..
 		if (in_use) {
 			nwl_shm_pool_finish(&bm->pool);

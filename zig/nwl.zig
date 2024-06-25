@@ -18,7 +18,7 @@ pub const Global = extern struct {
 /// CamelCasify a Wayland object name, to match zig-wayland
 const WlObjectNamer = struct {
     fn doWrite(name: []const u8, writer: anytype) !void {
-        var tok = std.mem.tokenize(u8, name, "_");
+        var tok = std.mem.tokenizeScalar(u8, name, '_');
         while (tok.next()) |t| {
             try writer.writeByte(std.ascii.toUpper(t[0]));
             try writer.writeAll(t[1..]);
