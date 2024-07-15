@@ -7,6 +7,8 @@
 static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *layer, uint32_t serial, uint32_t width, uint32_t height) {
 	UNUSED(layer);
 	struct nwl_surface *surf = (struct nwl_surface*)data;
+	surf->configure_serial = serial;
+	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	if (surf->impl.configure) {
 		surf->impl.configure(surf, width, height);
 	} else if (surf->width != width || surf->height != height) {
@@ -16,9 +18,10 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 			surf->height = height;
 			surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 		}
+	} else {
+		// Pointless configure? No need to do an update!
+		return;
 	}
-	surf->configure_serial = serial;
-	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	nwl_surface_set_need_update(surf, true);
 }
 
