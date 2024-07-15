@@ -11,6 +11,7 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 	surf->states = surf->states & ~NWL_SURFACE_STATE_NEEDS_CONFIGURE;
 	if (surf->impl.configure) {
 		surf->impl.configure(surf, width, height);
+		return;
 	} else if (surf->width != width || surf->height != height) {
 		// refuse to set sizes to zero
 		if (width > 0 && height > 0) {
@@ -18,8 +19,9 @@ static void handle_layer_configure(void *data, struct zwlr_layer_surface_v1 *lay
 			surf->height = height;
 			surf->states |= NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 		}
-	} else {
+	} else if (!(surf->states & NWL_SURFACE_STATE_NEEDS_UPDATE)) {
 		// Pointless configure? No need to do an update!
+		// ... unless an update was explicitly requested.
 		return;
 	}
 	nwl_surface_set_need_update(surf, true);
