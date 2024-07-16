@@ -5,16 +5,6 @@
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
 
-static void nwl_cairo_renderer_set_size(struct nwl_cairo_renderer *renderer, struct wl_shm *wl_shm, uint32_t width, uint32_t height) {
-	if (renderer->next_buffer != -1) {
-		renderer->next_buffer = -1;
-	}
-	renderer->prev_buffer = -1;
-	nwl_shm_bufferman_resize(&renderer->shm, wl_shm, width, height,
-			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width), WL_SHM_FORMAT_ARGB8888);
-}
-
-
 void nwl_cairo_renderer_submit(struct nwl_cairo_renderer *renderer, struct nwl_surface *surface, int32_t x, int32_t y) {
 	if (renderer->next_buffer == -1) {
 		return;
@@ -49,26 +39,33 @@ struct nwl_cairo_surface *nwl_cairo_renderer_get_surface(struct nwl_cairo_render
 		surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 		uint32_t scaled_width = surface->width * surface->scale;
 		uint32_t scaled_height = surface->height * surface->scale;
-		nwl_cairo_renderer_set_size(renderer, surface->state->wl.shm, scaled_width, scaled_height);
+		nwl_shm_bufferman_resize(&renderer->shm, surface->state->wl.shm, scaled_width, scaled_height,
+			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, scaled_width), WL_SHM_FORMAT_ARGB8888);
 		surface->current_width = scaled_width;
 		surface->current_height = scaled_height;
 		wl_surface_set_buffer_scale(surface->wl.surface, surface->scale);
+		renderer->next_buffer = -1;
+		renderer->prev_buffer = -1;
 	}
 	if (renderer->next_buffer == -1) {
 		renderer->next_buffer = get_next_buffer(renderer, surface->state->wl.shm);
 		if (renderer->next_buffer != -1) {
 			// Only do this blit if rendering to a different buffer, to take advantage of
 			// compositors that immediately release buffers.
-			if (copyprevious && renderer->prev_buffer != -1 && renderer->prev_buffer != renderer->next_buffer) {
-				struct nwl_cairo_surface *csurf = &renderer->cairo_surfaces[renderer->next_buffer];
-				struct nwl_cairo_surface *prevsurf = &renderer->cairo_surfaces[renderer->prev_buffer];
-				cairo_save(csurf->ctx);
-				cairo_reset_clip(csurf->ctx);
-				cairo_identity_matrix(csurf->ctx);
-				cairo_set_source_surface(csurf->ctx, prevsurf->surface, 0, 0);
-				cairo_set_operator(csurf->ctx, CAIRO_OPERATOR_SOURCE);
-				cairo_paint(csurf->ctx);
-				cairo_restore(csurf->ctx);
+			if (copyprevious) {
+				if (renderer->prev_buffer == -1) {
+					renderer->cairo_surfaces[renderer->next_buffer].rerender = true;
+				} else if (renderer->prev_buffer != renderer->next_buffer) {
+					struct nwl_cairo_surface *csurf = &renderer->cairo_surfaces[renderer->next_buffer];
+					struct nwl_cairo_surface *prevsurf = &renderer->cairo_surfaces[renderer->prev_buffer];
+					cairo_save(csurf->ctx);
+					cairo_reset_clip(csurf->ctx);
+					cairo_identity_matrix(csurf->ctx);
+					cairo_set_source_surface(csurf->ctx, prevsurf->surface, 0, 0);
+					cairo_set_operator(csurf->ctx, CAIRO_OPERATOR_SOURCE);
+					cairo_paint(csurf->ctx);
+					cairo_restore(csurf->ctx);
+				}
 			} else {
 				wl_surface_damage_buffer(surface->wl.surface, 0, 0, surface->current_width, surface->current_height);
 				renderer->cairo_surfaces[renderer->next_buffer].rerender = true;
