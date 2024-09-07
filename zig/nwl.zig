@@ -124,7 +124,7 @@ pub const WlList = extern struct {
 
 pub fn WlListHead(comptime linktype: type, comptime field: std.meta.FieldEnum(linktype)) type {
     const tinfo = @typeInfo(linktype);
-    if (tinfo != .Struct) {
+    if (tinfo != .@"struct") {
         @compileError("expected struct, got " ++ .{@typeName(linktype)});
     }
     const fieldinfo = std.meta.fieldInfo(linktype, field);
