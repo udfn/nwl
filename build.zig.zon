@@ -1,6 +1,7 @@
 .{
-    .name = "nwl",
+    .name = .nwl,
     .version = "0.5.0",
+    .fingerprint = 0x9972fd7a4de235b9,
     .paths = .{""},
     .dependencies = .{
         .wlscannerstep = .{
