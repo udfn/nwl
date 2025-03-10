@@ -46,6 +46,7 @@ pub fn build(b: *std.Build) !void {
     });
     scannerstep.addProtocol(b.path("protocol/wlr-layer-shell-unstable-v1.xml"));
     nwl_lib_mod.addIncludePath(b.path("."));
+    nwl_lib_mod.linkSystemLibrary("wayland-client", .{});
     nwl_lib_mod.addCSourceFiles(.{ .files = &.{
         "src/shell.c",
         "src/shm.c",
