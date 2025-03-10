@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .client_header_suffix = ".h",
     });
-    scannerstep.lib.root_module.pic = dynamic;
+    scannerstep.lib.root_module.pic = if (dynamic) true else null;
     scannerstep.linkWith(nwl_lib_mod);
     scannerstep.addSystemProtocols(&.{
         "stable/xdg-shell/xdg-shell.xml",
