@@ -150,6 +150,8 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	}
 	surface->configure_serial = 0;
 	surface->states = 0;
+	surface->width = 0;
+	surface->height = 0;
 	if (title) {
 		surface->title = strdup(title);
 	} else {
