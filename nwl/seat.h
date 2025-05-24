@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <wayland-util.h>
+#include <wayland-protocols/cursor-shape-v1-enum.h>
 
 typedef uint32_t xkb_keysym_t;
 typedef uint32_t xkb_keycode_t;
@@ -106,45 +107,6 @@ enum nwl_pointer_axis {
 	NWL_AXIS_HORIZONTAL = 1 << 1,
 };
 
-// These are the shapes from the cursor shape protocol, just renamed.
-enum nwl_cursor_shape {
-	NWL_CURSOR_SHAPE_NONE = 0,
-	NWL_CURSOR_SHAPE_DEFAULT,
-	NWL_CURSOR_SHAPE_CONTEXT_MENU,
-	NWL_CURSOR_SHAPE_HELP,
-	NWL_CURSOR_SHAPE_POINTER,
-	NWL_CURSOR_SHAPE_PROGRESS,
-	NWL_CURSOR_SHAPE_WAIT,
-	NWL_CURSOR_SHAPE_CELL,
-	NWL_CURSOR_SHAPE_CROSSHAIR,
-	NWL_CURSOR_SHAPE_TEXT,
-	NWL_CURSOR_SHAPE_VERTICAL_TEXT,
-	NWL_CURSOR_SHAPE_ALIAS,
-	NWL_CURSOR_SHAPE_COPY,
-	NWL_CURSOR_SHAPE_MOVE,
-	NWL_CURSOR_SHAPE_NO_DROP,
-	NWL_CURSOR_SHAPE_NOT_ALLOWED,
-	NWL_CURSOR_SHAPE_GRAB,
-	NWL_CURSOR_SHAPE_GRABBING,
-	NWL_CURSOR_SHAPE_E_RESIZE,
-	NWL_CURSOR_SHAPE_N_RESIZE,
-	NWL_CURSOR_SHAPE_NE_RESIZE,
-	NWL_CURSOR_SHAPE_NW_RESIZE,
-	NWL_CURSOR_SHAPE_S_RESIZE,
-	NWL_CURSOR_SHAPE_SE_RESIZE,
-	NWL_CURSOR_SHAPE_SW_RESIZE,
-	NWL_CURSOR_SHAPE_W_RESIZE,
-	NWL_CURSOR_SHAPE_EW_RESIZE,
-	NWL_CURSOR_SHAPE_NS_RESIZE,
-	NWL_CURSOR_SHAPE_NESW_RESIZE,
-	NWL_CURSOR_SHAPE_NWSE_RESIZE,
-	NWL_CURSOR_SHAPE_COL_RESIZE,
-	NWL_CURSOR_SHAPE_ROW_RESIZE,
-	NWL_CURSOR_SHAPE_ALL_SCROLL,
-	NWL_CURSOR_SHAPE_ZOOM_IN,
-	NWL_CURSOR_SHAPE_ZOOM_OUT,
-};
-
 struct nwl_pointer_event {
 	unsigned char changed; // nwl_seat_pointer_event_changed
 	uint32_t serial;
@@ -190,7 +152,7 @@ struct nwl_keyboard_event {
 void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t name);
 void nwl_seat_clear_focus(struct nwl_surface *surface);
 void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor);
-void nwl_seat_set_pointer_shape(struct nwl_seat *seat, uint32_t shape);
+void nwl_seat_set_pointer_shape(struct nwl_seat *seat, enum wp_cursor_shape_device_v1_shape shape);
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y);
 bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *data_source, struct nwl_surface *icon);
 

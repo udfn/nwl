@@ -278,48 +278,48 @@ static const struct wl_keyboard_listener keyboard_listener = {
 };
 
 // It could be that not all cursor themes have all of these named like this..
+// So should probably have multiple fallback names.
 const char *xcursor_shapes[] = {
-	[NWL_CURSOR_SHAPE_DEFAULT] = "default",
-	[NWL_CURSOR_SHAPE_CONTEXT_MENU] = "context-menu",
-	[NWL_CURSOR_SHAPE_HELP] = "help",
-	[NWL_CURSOR_SHAPE_POINTER] = "pointer",
-	[NWL_CURSOR_SHAPE_PROGRESS] = "progress",
-	[NWL_CURSOR_SHAPE_WAIT] = "wait",
-	[NWL_CURSOR_SHAPE_CELL] = "cell",
-	[NWL_CURSOR_SHAPE_CROSSHAIR] = "crosshair",
-	[NWL_CURSOR_SHAPE_TEXT] = "text",
-	[NWL_CURSOR_SHAPE_VERTICAL_TEXT] = "vertical-text",
-	[NWL_CURSOR_SHAPE_ALIAS] = "alias",
-	[NWL_CURSOR_SHAPE_COPY] = "copy",
-	[NWL_CURSOR_SHAPE_MOVE] = "move",
-	[NWL_CURSOR_SHAPE_NO_DROP] = "no-drop",
-	[NWL_CURSOR_SHAPE_NOT_ALLOWED] = "not-allowed",
-	[NWL_CURSOR_SHAPE_GRAB] = "grab",
-	[NWL_CURSOR_SHAPE_GRABBING] = "grabbing",
-	[NWL_CURSOR_SHAPE_E_RESIZE] = "e-resize",
-	[NWL_CURSOR_SHAPE_N_RESIZE] = "n-resize",
-	[NWL_CURSOR_SHAPE_NE_RESIZE] = "ne-resize",
-	[NWL_CURSOR_SHAPE_NW_RESIZE] = "nw-resize",
-	[NWL_CURSOR_SHAPE_S_RESIZE] = "s-resize",
-	[NWL_CURSOR_SHAPE_SE_RESIZE] = "se-resize",
-	[NWL_CURSOR_SHAPE_SW_RESIZE] = "sw-resize",
-	[NWL_CURSOR_SHAPE_W_RESIZE] = "w-resize",
-	[NWL_CURSOR_SHAPE_EW_RESIZE] = "ew-resize",
-	[NWL_CURSOR_SHAPE_NS_RESIZE] = "ns-resize",
-	[NWL_CURSOR_SHAPE_NESW_RESIZE] = "nesw-resize",
-	[NWL_CURSOR_SHAPE_NWSE_RESIZE] = "nwse-resize",
-	[NWL_CURSOR_SHAPE_COL_RESIZE] = "col-resize",
-	[NWL_CURSOR_SHAPE_ROW_RESIZE] = "row-resize",
-	[NWL_CURSOR_SHAPE_ALL_SCROLL] = "all-scroll",
-	[NWL_CURSOR_SHAPE_ZOOM_IN] = "zoom-in",
-	[NWL_CURSOR_SHAPE_ZOOM_OUT] = "zoom-out"
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT] = "default",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CONTEXT_MENU] = "context-menu",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_HELP] = "help",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER] = "pointer",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_PROGRESS] = "progress",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_WAIT] = "wait",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CELL] = "cell",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CROSSHAIR] = "crosshair",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_TEXT] = "text",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_VERTICAL_TEXT] = "vertical-text",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALIAS] = "alias",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_COPY] = "copy",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_MOVE] = "move",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NO_DROP] = "no-drop",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NOT_ALLOWED] = "not-allowed",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRAB] = "grab",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRABBING] = "grabbing",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_E_RESIZE] = "e-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_N_RESIZE] = "n-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NE_RESIZE] = "ne-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NW_RESIZE] = "nw-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_S_RESIZE] = "s-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SE_RESIZE] = "se-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SW_RESIZE] = "sw-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_W_RESIZE] = "w-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE] = "ew-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE] = "ns-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NESW_RESIZE] = "nesw-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NWSE_RESIZE] = "nwse-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_COL_RESIZE] = "col-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ROW_RESIZE] = "row-resize",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_SCROLL] = "all-scroll",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ZOOM_IN] = "zoom-in",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ZOOM_OUT] = "zoom-out",
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DND_ASK] = "dnd-ask",
+	// Not sure about this one...
+	[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_RESIZE] = "size_all",
 };
 
-void nwl_seat_set_pointer_shape(struct nwl_seat *seat, uint32_t shape) {
-	if (shape == NWL_CURSOR_SHAPE_NONE) {
-		wl_pointer_set_cursor(seat->pointer, seat->pointer_event->serial, NULL, 0, 0);
-		return;
-	}
+void nwl_seat_set_pointer_shape(struct nwl_seat *seat, enum wp_cursor_shape_device_v1_shape shape) {
 	if (seat->state->wl.cursor_shape_manager) {
 		if (!seat->pointer_surface.shape_device) {
 			seat->pointer_surface.shape_device = wp_cursor_shape_manager_v1_get_pointer(seat->state->wl.cursor_shape_manager, seat->pointer);
@@ -327,7 +327,8 @@ void nwl_seat_set_pointer_shape(struct nwl_seat *seat, uint32_t shape) {
 		wp_cursor_shape_device_v1_set_shape(seat->pointer_surface.shape_device, seat->pointer_event->serial, shape);
 		seat->pointer_surface.nwl = NULL;
 	} else {
-		if (shape > 0 && shape <= NWL_CURSOR_SHAPE_ZOOM_OUT) {
+		// Should probably check version..
+		if (shape > 0 && shape <= WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_RESIZE) {
 			nwl_seat_set_pointer_cursor(seat, xcursor_shapes[shape]);
 		}
 	}
@@ -421,7 +422,7 @@ static void handle_pointer_enter(void *data, struct wl_pointer *pointer, uint32_
 		seat->pointer_event->buttons = 0;
 	}
 	if (!(nwlsurf->flags & NWL_SURFACE_FLAG_NO_AUTOCURSOR)) {
-		nwl_seat_set_pointer_shape(seat, NWL_CURSOR_SHAPE_DEFAULT);
+		nwl_seat_set_pointer_shape(seat, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
 	}
 }
 

@@ -265,7 +265,7 @@ static void handle_global_add(void *data, struct wl_registry *reg,
 			nwl_seat_add_data_device(seat);
 		}
 	} else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
-		state->wl.cursor_shape_manager = nwl_registry_bind(reg, name, &wp_cursor_shape_manager_v1_interface, version, 1);
+		state->wl.cursor_shape_manager = nwl_registry_bind(reg, name, &wp_cursor_shape_manager_v1_interface, version, 2);
 	}
 #endif
 }

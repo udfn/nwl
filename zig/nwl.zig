@@ -275,43 +275,7 @@ pub const Seat = extern struct {
         keyboard_compose_state: ?*XkbComposeState,
         keyboard_compose_table: ?*XkbComposeTable,
     };
-    const CursorShape = enum(u32) {
-        none = 0,
-        default,
-        context_menu,
-        help,
-        pointer,
-        progress,
-        wait,
-        cell,
-        crosshair,
-        text,
-        vertical_text,
-        alias,
-        copy,
-        move,
-        no_drop,
-        not_allowed,
-        grab,
-        grabbing,
-        e_resize,
-        n_resize,
-        ne_resize,
-        nw_resize,
-        s_resize,
-        se_resize,
-        sw_resize,
-        w_resize,
-        ew_resize,
-        ns_resize,
-        nesw_resize,
-        nwse_resize,
-        col_resize,
-        row_resize,
-        all_scroll,
-        zoom_in,
-        zoom_out,
-    };
+    const CursorShape = if (@hasDecl(WpCursorShapeDeviceV1, "Shape")) WpCursorShapeDeviceV1.Shape else c_int;
 
     state: *State,
     link: WlList,
@@ -552,11 +516,11 @@ pub const State = extern struct {
     pub const PollCallbackFn = *const fn (*State, u32, ?*anyopaque) callconv(.C) void;
     pub const BoundGlobal = extern struct {
         pub const Kind = enum(c_int) { output = 0, seat };
-        kind:Kind,
-        global:extern union{
-            output:*Output,
-            seat:*Seat,
-        }
+        kind: Kind,
+        global: extern union {
+            output: *Output,
+            seat: *Seat,
+        },
     };
     wl: extern struct {
         display: ?*WlDisplay = null,
