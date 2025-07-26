@@ -2,19 +2,7 @@
 //! Top tip! In root do something like...
 //! pub const wayland = @import("wayland");
 //! Then Wayland types here will become zig-wayland types!
-
 const std = @import("std");
-
-pub const Global = extern struct {
-    const Impl = extern struct {
-        destroy: ?*const fn (?*anyopaque) callconv(.C) void,
-    };
-    link: WlList,
-    name: u32,
-    global: ?*anyopaque,
-    impl: Impl,
-};
-
 /// CamelCasify a Wayland object name, to match zig-wayland
 const WlObjectNamer = struct {
     fn doWrite(name: []const u8, writer: anytype) !void {
@@ -94,22 +82,29 @@ pub const WpCursorShapeDeviceV1 = WaylandObject("wp_cursor_shape_device_v1");
 pub const WpCursorShapeManagerV1 = WaylandObject("wp_cursor_shape_manager_v1");
 pub const XkbContext = opaque {};
 pub const WlCursorTheme = opaque {};
-pub const Poll = opaque {};
 
 pub const Output = extern struct {
-    state: *State,
+    core: *Core,
     output: *WlOutput,
     xdg_output: ?*ZxdgOutputV1,
     link: WlList,
     scale: c_int,
+    is_done: u8,
     x: i32,
     y: i32,
     width: i32,
     height: i32,
-    name: ?[*:0]u8,
+    name: ?[*:0]const u8,
+    description: ?[*:0]const u8,
+
+    extern fn nwl_output_init(nwl_output: *Output, core: *Core, wl_output: *WlOutput) void;
+    extern fn nwl_output_deinit(nwl_output: *Output) void;
+
+    pub const init = nwl_output_init;
+    pub const deinit = nwl_output_deinit;
 };
 pub const StateSubImpl = extern struct {
-    destroy: ?*const fn (*StateSub) callconv(.C) void,
+    destroy: ?*const fn (*StateSub) callconv(.c) void,
 };
 pub const StateSub = extern struct {
     link: WlList,
@@ -277,7 +272,7 @@ pub const Seat = extern struct {
     };
     const CursorShape = if (@hasDecl(WpCursorShapeDeviceV1, "Shape")) WpCursorShapeDeviceV1.Shape else c_int;
 
-    state: *State,
+    core: *Core,
     link: WlList,
     wl_seat: *WlSeat,
     data_device: DataDevice,
@@ -298,14 +293,18 @@ pub const Seat = extern struct {
     pointer_prev_focus: ?*Surface,
     pointer_surface: PointerSurface,
     pointer_event: ?*PointerEvent,
-    name: ?[*:0]u8,
+    name: ?[*:0]const u8,
     userdata: ?*anyopaque,
 
+    extern fn nwl_seat_init(seat: *Seat, wl_seat: *WlSeat, core: *Core) void;
+    extern fn nwl_seat_deinit(seat: *Seat) void;
     extern fn nwl_seat_set_pointer_cursor(seat: *Seat, cursor: [*:0]const u8) void;
     extern fn nwl_seat_set_pointer_shape(seat: *Seat, shape: CursorShape) void;
     extern fn nwl_seat_set_pointer_surface(seat: *Seat, surface: *Surface, hotspot_x: i32, hotspot_y: i32) bool;
     extern fn nwl_seat_start_drag(seat: *Seat, data_source: *WlDataSource, icon: ?*Surface) void;
 
+    pub const init = nwl_seat_init;
+    pub const deinit = nwl_seat_deinit;
     pub const setPointerCursor = nwl_seat_set_pointer_cursor;
     pub const setPointerShape = nwl_seat_set_pointer_shape;
     pub fn setPointerSurface(seat: *Seat, surface: *Surface, hotspot_x: i32, hotspot_y: i32) !void {
@@ -369,7 +368,7 @@ extern fn wl_proxy_marshal(p: ?*WlProxy, opcode: u32, ...) void;
 const Error = error{ InitFailed, RoleSetFailed, SurfaceCreateFailed };
 
 pub const Surface = extern struct {
-    const GenericSurfaceFn = *const fn (*Surface) callconv(.C) void;
+    const GenericSurfaceFn = *const fn (*Surface) callconv(.c) void;
     const RoleId = enum(u8) { none, toplevel, popup, layer, sub, cursor, dragicon };
     const Flags = packed struct(u32) {
         no_autoscale: bool = false,
@@ -397,10 +396,10 @@ pub const Surface = extern struct {
     const SurfaceImpl = extern struct {
         update: ?GenericSurfaceFn = null,
         destroy: ?GenericSurfaceFn = null,
-        input_pointer: ?*const fn (*Surface, *Seat, *PointerEvent) callconv(.C) void = null,
-        input_keyboard: ?*const fn (*Surface, *Seat, *KeyboardEvent) callconv(.C) void = null,
-        dnd: ?*const fn (*Surface, *Seat, *DndEvent) callconv(.C) void = null,
-        configure: ?*const fn (*Surface, u32, u32) callconv(.C) void = null,
+        input_pointer: ?*const fn (*Surface, *Seat, *PointerEvent) callconv(.c) void = null,
+        input_keyboard: ?*const fn (*Surface, *Seat, *KeyboardEvent) callconv(.c) void = null,
+        dnd: ?*const fn (*Surface, *Seat, *DndEvent) callconv(.c) void = null,
+        configure: ?*const fn (*Surface, u32, u32) callconv(.c) void = null,
         close: ?GenericSurfaceFn = null,
     };
     const RoleUnion = extern union {
@@ -433,7 +432,7 @@ pub const Surface = extern struct {
 
     link: WlList = .{},
     dirtlink: WlList = .{},
-    state: *State = undefined,
+    core: *Core = undefined,
     wl: extern struct {
         surface: *WlSurface,
         xdg_surface: ?*XdgSurface,
@@ -472,7 +471,7 @@ pub const Surface = extern struct {
     extern fn nwl_surface_role_toplevel(surface: *Surface) bool;
     extern fn nwl_surface_role_popup(surface: *Surface, parent: *Surface, positioner: *XdgPositioner) bool;
     extern fn nwl_surface_role_unset(surface: *Surface) void;
-    extern fn nwl_surface_init(surface: *Surface, state: *State, title: [*:0]const u8) void;
+    extern fn nwl_surface_init(surface: *Surface, core: *Core, title: [*:0]const u8) void;
     extern fn nwl_surface_buffer_submitted(surface: *Surface) void;
     pub fn commit(self: *Surface) void {
         if (@hasDecl(WlSurface, "commit")) {
@@ -512,8 +511,16 @@ pub const Surface = extern struct {
     pub const init = nwl_surface_init;
 };
 
-pub const State = extern struct {
-    pub const PollCallbackFn = *const fn (*State, u32, ?*anyopaque) callconv(.C) void;
+pub const Easy = extern struct {
+    pub const Global = extern struct {
+        const Impl = extern struct {
+            destroy: ?*const fn (?*anyopaque) callconv(.c) void,
+        };
+        link: WlList,
+        name: u32,
+        global: ?*anyopaque,
+        impl: Impl,
+    };
     pub const BoundGlobal = extern struct {
         pub const Kind = enum(c_int) { output = 0, seat };
         kind: Kind,
@@ -522,9 +529,60 @@ pub const State = extern struct {
             seat: *Seat,
         },
     };
+    const Poll = extern struct {
+        pub const CallbackFn = *const fn (*Easy, u32, ?*anyopaque) callconv(.c) void;
+        const Data = extern struct {
+            link: WlList = .{},
+            fd: c_int,
+            userdata: ?*anyopaque,
+            callback: CallbackFn,
+        };
+        epfd: c_int = undefined,
+        numfds: c_int = 0,
+        ev: [*]std.os.linux.epoll_event = undefined,
+        data: WlListHead(Data, .link) = .{},
+    };
+    core: Core = .{},
+    poll: Poll = .{},
+    events: extern struct {
+        global_bound: ?*const fn (global: *const BoundGlobal) callconv(.c) void = null,
+        global_destroy: ?*const fn (global: *const BoundGlobal) callconv(.c) void = null,
+        global_add: ?*const fn (*Easy, *WlRegistry, u32, [*:0]const u8, u32) callconv(.c) bool = null,
+        global_remove: ?*const fn (*Easy, *WlRegistry, u32) callconv(.c) void = null,
+    } = .{},
+    globals: WlListHead(Global, .link) = .{},
+
+    registry: *WlRegistry = undefined,
+    display: *WlDisplay = undefined,
+    run_with_zero_surfaces: bool = false,
+    has_errored: bool = false,
+    has_new_outputs: bool = false,
+
+    extern fn nwl_easy_init(easy: *Easy) bool;
+    extern fn nwl_easy_deinit(easy: *Easy) void;
+    extern fn nwl_easy_run(easy: *Easy) void;
+    extern fn nwl_easy_add_fd(easy: *Easy, fd: c_int, events: u32, callback: Poll.CallbackFn, data: ?*anyopaque) void;
+    extern fn nwl_easy_del_fd(easy: *Easy, fd: c_int) void;
+    extern fn nwl_easy_dispatch(easy: *Easy, timeout: c_int) bool;
+
+    pub const addFd = nwl_easy_add_fd;
+    pub const delFd = nwl_easy_del_fd;
+    pub const run = nwl_easy_run;
+    pub fn dispatch(easy: *Easy, timeout: c_int) !void {
+        if (!easy.nwl_easy_dispatch(timeout)) {
+            return error.DispatchFailed;
+        }
+    }
+    pub const deinit = nwl_easy_deinit;
+    pub fn init(easy: *Easy) !void {
+        if (!easy.nwl_easy_init()) {
+            return error.InitFailed;
+        }
+    }
+};
+
+pub const Core = extern struct {
     wl: extern struct {
-        display: ?*WlDisplay = null,
-        registry: ?*WlRegistry = null,
         compositor: ?*WlCompositor = null,
         shm: ?*WlShm = null,
         xdg_wm_base: ?*XdgWmBase = null,
@@ -539,43 +597,26 @@ pub const State = extern struct {
     outputs: WlListHead(Output, .link) = .{},
     surfaces: WlListHead(Surface, .link) = .{},
     surfaces_dirty: WlListHead(Surface, .dirtlink) = .{},
-    globals: WlListHead(Global, .link) = .{},
     subs: WlListHead(StateSub, .link) = .{},
+
     cursor_theme: ?*WlCursorTheme = null,
     cursor_theme_size: u32 = 0,
     num_surfaces: u32 = 0,
-    run_with_zero_surfaces: bool = false,
-    poll: ?*Poll = null,
-    events: extern struct {
-        global_bound: ?*const fn (global: *const BoundGlobal) callconv(.C) void = null,
-        global_destroy: ?*const fn (global: *const BoundGlobal) callconv(.C) void = null,
-        global_add: ?*const fn (*State, *WlRegistry, u32, [*:0]const u8, u32) callconv(.C) bool = null,
-        global_remove: ?*const fn (*State, *WlRegistry, u32) callconv(.C) void = null,
-    } = .{},
+    has_dirty_surfaces: bool = false,
     xdg_app_id: ?[*:0]const u8 = null,
-    extern fn nwl_wayland_init(state: *State) u8;
-    extern fn nwl_wayland_uninit(state: *State) void;
-    extern fn nwl_wayland_run(state: *State) void;
-    extern fn nwl_state_add_sub(state: *State, sub: *StateSub) void;
-    extern fn nwl_state_get_sub(state: *State, impl: *StateSubImpl) ?*StateSub;
-    extern fn nwl_poll_add_fd(state: *State, fd: c_int, events: u32, callback: PollCallbackFn, data: ?*anyopaque) void;
-    extern fn nwl_poll_del_fd(state: *State, fd: c_int) void;
-    extern fn nwl_poll_get_fd(state: *State) std.posix.fd_t;
-    extern fn nwl_poll_dispatch(state: *State, timeout: c_int) bool;
+    extern fn nwl_core_init(core: *Core) void;
+    extern fn nwl_core_deinit(core: *Core) void;
+    extern fn nwl_core_handle_dirt(core: *Core) void;
+    extern fn nwl_core_add_sub(core: *Core, sub: *StateSub) void;
+    extern fn nwl_core_get_sub(core: *Core, impl: *StateSubImpl) ?*StateSub;
+    extern fn nwl_core_handle_global(core: *Core, registry: *WlRegistry, name: u32, interface: [*:0]const u8, version: u32) bool;
 
-    pub const addSub = nwl_state_add_sub;
-    pub const getSub = nwl_state_get_sub;
-    pub const addFd = nwl_poll_add_fd;
-    pub const delFd = nwl_poll_del_fd;
-    pub const getFd = nwl_poll_get_fd;
-    pub const dispatch = nwl_poll_dispatch;
-    pub fn waylandInit(self: *State) Error!void {
-        if (self.nwl_wayland_init() != 0) {
-            return Error.InitFailed;
-        }
-    }
-    pub const waylandUninit = nwl_wayland_uninit;
-    pub const run = nwl_wayland_run;
+    pub const init = nwl_core_init;
+    pub const deinit = nwl_core_deinit;
+    pub const handleDirt = nwl_core_handle_dirt;
+    pub const addSub = nwl_core_add_sub;
+    pub const getSub = nwl_core_get_sub;
+    pub const handleGlobal = nwl_core_handle_global;
 };
 
 pub const ShmPool = extern struct {
@@ -601,8 +642,8 @@ pub const ShmBufferMan = extern struct {
         flags: Flags = .{},
     };
     pub const RendererImpl = extern struct {
-        buffer_create: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.C) void,
-        buffer_destroy: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.C) void,
+        buffer_create: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.c) void,
+        buffer_destroy: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.c) void,
     };
     pool: ShmPool = .{},
     buffers: [max_buffers]Buffer = [_]Buffer{.{}} ** max_buffers,

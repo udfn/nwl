@@ -59,9 +59,9 @@ typedef void (*nwl_surface_generic_func_t)(struct nwl_surface *surface);
 
 
 struct nwl_surface {
-	struct wl_list link; // either linked to nwl_state, or another nwl_surface if subsurface
+	struct wl_list link; // either linked to nwl_core, or another nwl_surface if subsurface
 	struct wl_list dirtlink; // link if dirty
-	struct nwl_state *state;
+	struct nwl_core *core;
 	struct {
 		struct wl_surface *surface;
 		struct xdg_surface *xdg_surface;
@@ -118,7 +118,7 @@ struct nwl_surface {
 	} impl;
 };
 
-void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title);
+void nwl_surface_init(struct nwl_surface *surface, struct nwl_core *core, const char *title);
 void nwl_surface_destroy(struct nwl_surface *surface);
 void nwl_surface_destroy_later(struct nwl_surface *surface);
 void nwl_surface_set_size(struct nwl_surface *surface, uint32_t width, uint32_t height);

@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-#include <wayland-client-core.h>
+#include <wayland-client-protocol.h>
 #include <wayland-cursor.h>
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
@@ -26,22 +26,22 @@ static const char *get_env_locale() {
 }
 
 struct nwl_xkb_context {
-	struct nwl_state_sub sub;
+	struct nwl_core_sub sub;
 	struct xkb_context *ctx;
 };
 
-static void xkb_context_sub_destroy(struct nwl_state_sub *sub) {
+static void xkb_context_sub_destroy(struct nwl_core_sub *sub) {
 	struct nwl_xkb_context *xkbsub = wl_container_of(sub, xkbsub, sub);
 	xkb_context_unref(xkbsub->ctx);
 	free(xkbsub);
 }
 
-static const struct nwl_state_sub_impl xkb_context_sub_impl = {
+static const struct nwl_core_sub_impl xkb_context_sub_impl = {
 	xkb_context_sub_destroy
 };
 
-static struct xkb_context *get_xkb_context(struct nwl_state *state) {
-	struct nwl_state_sub *exist = nwl_state_get_sub(state, &xkb_context_sub_impl);
+static struct xkb_context *get_xkb_context(struct nwl_core *core) {
+	struct nwl_core_sub *exist = nwl_core_get_sub(core, &xkb_context_sub_impl);
 	if (exist) {
 		struct nwl_xkb_context *xkbsub = wl_container_of(exist, xkbsub, sub);
 		return xkbsub->ctx;
@@ -49,7 +49,7 @@ static struct xkb_context *get_xkb_context(struct nwl_state *state) {
 	struct nwl_xkb_context *xkbsub = malloc(sizeof(struct nwl_xkb_context));
 	xkbsub->ctx = xkb_context_new(0);
 	xkbsub->sub.impl = &xkb_context_sub_impl;
-	nwl_state_add_sub(state, &xkbsub->sub);
+	nwl_core_add_sub(core, &xkbsub->sub);
 	return xkbsub->ctx;
 }
 
@@ -81,7 +81,7 @@ static void handle_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, 
 		return;
 	}
 	char *kbmap = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-	struct xkb_context *context = get_xkb_context(seat->state);
+	struct xkb_context *context = get_xkb_context(seat->core);
 	// -1 to remove the null termination
 	seat->keyboard_xkb.keymap = xkb_keymap_new_from_buffer(context, kbmap, size-1,
 		XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
@@ -128,12 +128,15 @@ static void update_keyboard_event_compose(struct nwl_seat *seat) {
 	}
 }
 
-static void nwl_seat_send_key_repeat(struct nwl_state *state, uint32_t events, void *data) {
-	UNUSED(state);
-	UNUSED(events);
-	struct nwl_seat *seat = data;
+void nwl_seat_handle_repeat(struct nwl_seat *seat) {
 	uint64_t expirations;
+	if (!seat->keyboard) {
+		return;
+	}
 	read(seat->keyboard_repeat_fd, &expirations, sizeof(uint64_t));
+	if (expirations == 0) {
+		return;
+	}
 	if (!seat->keyboard_repeat_enabled) {
 		struct itimerspec timer = { 0 };
 		timerfd_settime(seat->keyboard_repeat_fd, 0, &timer, NULL);
@@ -262,10 +265,6 @@ static void handle_keyboard_repeat(
 	struct nwl_seat *seat = (struct nwl_seat*)data;
 	seat->keyboard_repeat_rate = rate;
 	seat->keyboard_repeat_delay = delay;
-	if (seat->keyboard_repeat_fd == -1) {
-		seat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-		nwl_poll_add_fd(seat->state, seat->keyboard_repeat_fd, 0x001, nwl_seat_send_key_repeat, seat);
-	}
 }
 
 static const struct wl_keyboard_listener keyboard_listener = {
@@ -320,9 +319,9 @@ const char *xcursor_shapes[] = {
 };
 
 void nwl_seat_set_pointer_shape(struct nwl_seat *seat, enum wp_cursor_shape_device_v1_shape shape) {
-	if (seat->state->wl.cursor_shape_manager) {
+	if (seat->core->wl.cursor_shape_manager) {
 		if (!seat->pointer_surface.shape_device) {
-			seat->pointer_surface.shape_device = wp_cursor_shape_manager_v1_get_pointer(seat->state->wl.cursor_shape_manager, seat->pointer);
+			seat->pointer_surface.shape_device = wp_cursor_shape_manager_v1_get_pointer(seat->core->wl.cursor_shape_manager, seat->pointer);
 		}
 		wp_cursor_shape_device_v1_set_shape(seat->pointer_surface.shape_device, seat->pointer_event->serial, shape);
 		seat->pointer_surface.nwl = NULL;
@@ -344,17 +343,17 @@ void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor) {
 		return;
 	}
 	if (!seat->pointer_surface.xcursor_surface) {
-		seat->pointer_surface.xcursor_surface = wl_compositor_create_surface(seat->state->wl.compositor);
+		seat->pointer_surface.xcursor_surface = wl_compositor_create_surface(seat->core->wl.compositor);
 	}
-	if ((int)seat->state->cursor_theme_size != surface->scale*24) {
-		if (seat->state->cursor_theme) {
-			wl_cursor_theme_destroy(seat->state->cursor_theme);
+	if ((int)seat->core->cursor_theme_size != surface->scale*24) {
+		if (seat->core->cursor_theme) {
+			wl_cursor_theme_destroy(seat->core->cursor_theme);
 		}
-		seat->state->cursor_theme = wl_cursor_theme_load(NULL, 24 * surface->scale, seat->state->wl.shm);
-		seat->state->cursor_theme_size = 24 * surface->scale;
+		seat->core->cursor_theme = wl_cursor_theme_load(NULL, 24 * surface->scale, seat->core->wl.shm);
+		seat->core->cursor_theme_size = 24 * surface->scale;
 		wl_surface_set_buffer_scale(seat->pointer_surface.xcursor_surface, surface->scale);
 	}
-	struct wl_cursor *xcursor = wl_cursor_theme_get_cursor(seat->state->cursor_theme, cursor);
+	struct wl_cursor *xcursor = wl_cursor_theme_get_cursor(seat->core->cursor_theme, cursor);
 	if (!xcursor) {
 		return;
 	}
@@ -668,12 +667,7 @@ static const struct wl_touch_listener touch_listener = {
 static void seat_release_keyboard(struct nwl_seat *seat) {
 	free(seat->keyboard_event);
 	wl_keyboard_release(seat->keyboard);
-	if (seat->keyboard_repeat_fd != -1) {
-		nwl_poll_del_fd(seat->state, seat->keyboard_repeat_fd);
-		close(seat->keyboard_repeat_fd);
-		seat->keyboard_repeat_fd = -1;
-	}
-	unref_seat_xkb(seat);
+		unref_seat_xkb(seat);
 	seat->keyboard = NULL;
 }
 
@@ -879,8 +873,8 @@ static const struct wl_data_device_listener data_device_listener = {
 
 void nwl_seat_clear_focus(struct nwl_surface *surface) {
 	struct nwl_seat *seat;
-	struct nwl_state *state = surface->state;
-	wl_list_for_each(seat, &state->seats, link) {
+	struct nwl_core *core = surface->core;
+	wl_list_for_each(seat, &core->seats, link) {
 		if (seat->pointer_focus == surface) {
 			seat->pointer_focus = NULL;
 			seat->pointer_event->buttons = 0;
@@ -895,12 +889,7 @@ void nwl_seat_clear_focus(struct nwl_surface *surface) {
 	}
 }
 
-static void nwl_seat_destroy(void *data) {
-	struct nwl_seat *seat = data;
-	if (seat->state->events.global_destroy) {
-		struct nwl_bound_global global = { .global.seat = seat, .kind = NWL_BOUND_GLOBAL_SEAT };
-		seat->state->events.global_destroy(&global);
-	}
+void nwl_seat_deinit(struct nwl_seat *seat) {
 	wl_list_remove(&seat->link);
 	if (seat->pointer) {
 		seat_release_pointer(seat);
@@ -924,34 +913,26 @@ static void nwl_seat_destroy(void *data) {
 		wl_data_device_release(seat->data_device.wl);
 	}
 	wl_seat_release(seat->wl_seat);
-	free(seat);
 }
 
 void nwl_seat_add_data_device(struct nwl_seat *seat) {
-	seat->data_device.wl = wl_data_device_manager_get_data_device(seat->state->wl.data_device_manager, seat->wl_seat);
+	seat->data_device.wl = wl_data_device_manager_get_data_device(seat->core->wl.data_device_manager, seat->wl_seat);
 	wl_data_device_add_listener(seat->data_device.wl, &data_device_listener, seat);
 }
 
-void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t name) {
-	struct nwl_seat *nwlseat = calloc(1, sizeof(struct nwl_seat));
-	nwlseat->state = state;
+void nwl_seat_init(struct nwl_seat *nwlseat, struct wl_seat *wlseat, struct nwl_core *core) {
+	// Hm, not really liking this..
+	memset(nwlseat, 0, sizeof(struct nwl_seat));
+	nwlseat->core = core;
 	nwlseat->wl_seat = wlseat;
-	nwlseat->keyboard_repeat_fd = -1;
+	nwlseat->keyboard_repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
 
-	wl_list_insert(&state->seats, &nwlseat->link);
+	wl_list_insert(&core->seats, &nwlseat->link);
 	wl_seat_add_listener(wlseat, &seat_listener, nwlseat);
-	struct nwl_global *glob = calloc(1, sizeof(struct nwl_global));
-	glob->global = nwlseat;
-	glob->name = name;
-	glob->impl.destroy = nwl_seat_destroy;
-	wl_list_insert(&state->globals, &glob->link);
-	if (state->wl.data_device_manager) {
+	if (core->wl.data_device_manager) {
 		nwl_seat_add_data_device(nwlseat);
 	}
-	if (state->events.global_bound) {
-		struct nwl_bound_global global = { .global.seat = nwlseat, .kind = NWL_BOUND_GLOBAL_SEAT };
-		state->events.global_bound(&global);
-	}
+
 }
 
 bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *wl_data_source, struct nwl_surface *icon) {

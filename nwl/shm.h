@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 struct wl_shm;
-struct nwl_state;
+struct nwl_core;
 
 struct nwl_shm_pool {
 	int fd;
@@ -56,7 +56,7 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bufferman, struct wl_shm
 	uint32_t width, uint32_t height, uint32_t stride, uint32_t format);
 void nwl_shm_bufferman_init(struct nwl_shm_bufferman *bufferman);
 void nwl_shm_bufferman_finish(struct nwl_shm_bufferman *bufferman);
-void nwl_shm_get_supported_formats(struct nwl_state *state, uint32_t **formats, uint32_t *len);
+void nwl_shm_get_supported_formats(struct nwl_core *core, uint32_t **formats, uint32_t *len);
 // Set max amount of buffers
 void nwl_shm_bufferman_set_slots(struct nwl_shm_bufferman *bufferman, struct wl_shm *wl_shm, uint8_t num_slots);
 #endif

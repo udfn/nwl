@@ -42,7 +42,7 @@ struct nwl_seat_keymap_xkb {
 };
 
 struct nwl_seat {
-	struct nwl_state *state;
+	struct nwl_core *core;
 	struct wl_list link;
 	struct wl_seat *wl_seat;
 	struct {
@@ -149,11 +149,13 @@ struct nwl_keyboard_event {
 	uint32_t serial;
 };
 
-void nwl_seat_create(struct wl_seat *wlseat, struct nwl_state *state, uint32_t name);
+void nwl_seat_init(struct nwl_seat *seat, struct wl_seat *wlseat, struct nwl_core *core);
+void nwl_seat_deinit(struct nwl_seat *seat);
 void nwl_seat_clear_focus(struct nwl_surface *surface);
 void nwl_seat_set_pointer_cursor(struct nwl_seat *seat, const char *cursor);
 void nwl_seat_set_pointer_shape(struct nwl_seat *seat, enum wp_cursor_shape_device_v1_shape shape);
 bool nwl_seat_set_pointer_surface(struct nwl_seat *seat, struct nwl_surface *surface, int32_t hotspot_x, int32_t hotspot_y);
 bool nwl_seat_start_drag(struct nwl_seat *seat, struct wl_data_source *data_source, struct nwl_surface *icon);
+void nwl_seat_handle_repeat(struct nwl_seat *seat);
 
 #endif

@@ -145,26 +145,26 @@ void nwl_shm_bufferman_finish(struct nwl_shm_bufferman *bufferman) {
 	nwl_shm_pool_finish(&bufferman->pool);
 }
 
-struct nwl_shm_state_sub {
-	struct nwl_state_sub nwlsub;
+struct nwl_shm_core_sub {
+	struct nwl_core_sub nwlsub;
 	uint32_t *formats;
 	uint32_t len;
 	uint32_t alloc_len;
 };
 
-static void shm_sub_destroy(struct nwl_state_sub *sub) {
-	struct nwl_shm_state_sub *shmsub = wl_container_of(sub, shmsub, nwlsub);
+static void shm_sub_destroy(struct nwl_core_sub *sub) {
+	struct nwl_shm_core_sub *shmsub = wl_container_of(sub, shmsub, nwlsub);
 	free(shmsub->formats);
 	free(shmsub);
 }
 
-static const struct nwl_state_sub_impl shm_subimpl = {
+static const struct nwl_core_sub_impl shm_subimpl = {
 	shm_sub_destroy
 };
 
 static void shm_handle_format(void *data, struct wl_shm *shm, uint32_t format) {
 	UNUSED(shm);
-	struct nwl_shm_state_sub *sub = data;
+	struct nwl_shm_core_sub *sub = data;
 	sub->len++;
 	if (sub->len > sub->alloc_len) {
 		uint32_t new_alloc_len = sub->len+8;
@@ -178,17 +178,17 @@ static const struct wl_shm_listener shm_listener = {
 	shm_handle_format
 };
 
-void nwl_shm_add_listener(struct nwl_state *state) {
-	struct nwl_shm_state_sub *sub = calloc(sizeof(struct nwl_shm_state_sub), 1);
+void nwl_shm_add_listener(struct nwl_core *core) {
+	struct nwl_shm_core_sub *sub = calloc(sizeof(struct nwl_shm_core_sub), 1);
 	sub->nwlsub.impl = &shm_subimpl;
-	wl_shm_add_listener(state->wl.shm, &shm_listener, sub);
-	nwl_state_add_sub(state, &sub->nwlsub);
+	wl_shm_add_listener(core->wl.shm, &shm_listener, sub);
+	nwl_core_add_sub(core, &sub->nwlsub);
 }
 
-void nwl_shm_get_supported_formats(struct nwl_state *state, uint32_t **formats, uint32_t *len) {
-	struct nwl_state_sub *nwlsub = nwl_state_get_sub(state, &shm_subimpl);
+void nwl_shm_get_supported_formats(struct nwl_core *core, uint32_t **formats, uint32_t *len) {
+	struct nwl_core_sub *nwlsub = nwl_core_get_sub(core, &shm_subimpl);
 	if (nwlsub) {
-		struct nwl_shm_state_sub *sub = wl_container_of(nwlsub, sub, nwlsub);
+		struct nwl_shm_core_sub *sub = wl_container_of(nwlsub, sub, nwlsub);
 		*len = sub->len;
 		*formats = sub->formats;
 	}

@@ -5,7 +5,6 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     // Maybe have an OptionsStep as well so features are reflected in nwl.zig?
-    const egl = b.option(bool, "egl", "EGL support") orelse false;
     const cairo = b.option(bool, "cairo", "Cairo renderer") orelse false;
     const seat = b.option(bool, "seat", "Wayland seat support") orelse false;
     const dynamic = b.option(bool, "dynamic", "Dynamically link nwl, useful for working around lld logspam") orelse false;
@@ -61,11 +60,6 @@ pub fn build(b: *std.Build) !void {
             "staging/cursor-shape/cursor-shape-v1.xml",
             "unstable/tablet/tablet-unstable-v2.xml",
         });
-    }
-    if (egl) {
-        nwl_lib_mod.addCSourceFile(.{ .file = b.path("src/egl.c"), .flags = &.{} });
-        nwl_lib_mod.linkSystemLibrary("wayland-egl", .{});
-        nwl_lib_mod.linkSystemLibrary("epoxy", .{});
     }
     if (cairo) {
         nwl_lib.addCSourceFile(.{ .file = b.path("src/cairo.c"), .flags = &.{} });

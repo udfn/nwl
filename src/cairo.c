@@ -39,7 +39,7 @@ struct nwl_cairo_surface *nwl_cairo_renderer_get_surface(struct nwl_cairo_render
 		surface->states = surface->states & ~NWL_SURFACE_STATE_NEEDS_APPLY_SIZE;
 		uint32_t scaled_width = surface->width * surface->scale;
 		uint32_t scaled_height = surface->height * surface->scale;
-		nwl_shm_bufferman_resize(&renderer->shm, surface->state->wl.shm, scaled_width, scaled_height,
+		nwl_shm_bufferman_resize(&renderer->shm, surface->core->wl.shm, scaled_width, scaled_height,
 			cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, scaled_width), WL_SHM_FORMAT_ARGB8888);
 		surface->current_width = scaled_width;
 		surface->current_height = scaled_height;
@@ -48,7 +48,7 @@ struct nwl_cairo_surface *nwl_cairo_renderer_get_surface(struct nwl_cairo_render
 		renderer->prev_buffer = -1;
 	}
 	if (renderer->next_buffer == -1) {
-		renderer->next_buffer = get_next_buffer(renderer, surface->state->wl.shm);
+		renderer->next_buffer = get_next_buffer(renderer, surface->core->wl.shm);
 		if (renderer->next_buffer != -1) {
 			// Only do this blit if rendering to a different buffer, to take advantage of
 			// compositors that immediately release buffers.

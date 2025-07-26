@@ -129,8 +129,8 @@ static const struct wl_surface_listener surface_listener = {
 	handle_preferred_transform
 };
 
-void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, const char *title) {
-	surface->state = state;
+void nwl_surface_init(struct nwl_surface *surface, struct nwl_core *core, const char *title) {
+	surface->core = core;
 	surface->frame = 0;
 	surface->defer_update = false;
 	surface->wl.surface = NULL;
@@ -139,7 +139,7 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	surface->outputs.amount = 0;
 	surface->outputs.outputs = NULL;
 	surface->role_id = NWL_SURFACE_ROLE_NONE;
-	surface->wl.surface = wl_compositor_create_surface(state->wl.compositor);
+	surface->wl.surface = wl_compositor_create_surface(core->wl.compositor);
 	surface->scale = 1;
 	surface->scale_preferred = 0;
 	if (surface->desired_height == 0) {
@@ -159,7 +159,7 @@ void nwl_surface_init(struct nwl_surface *surface, struct nwl_state *state, cons
 	}
 	wl_list_init(&surface->subsurfaces);
 	wl_list_init(&surface->dirtlink);
-	wl_list_insert(&state->surfaces, &surface->link);
+	wl_list_insert(&core->surfaces, &surface->link);
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 }
@@ -190,7 +190,7 @@ static void nwl_surface_destroy_role(struct nwl_surface *surface) {
 	}
 	if (surface->role_id == NWL_SURFACE_ROLE_TOPLEVEL ||
 			surface->role_id == NWL_SURFACE_ROLE_LAYER) {
-		surface->state->num_surfaces--;
+		surface->core->num_surfaces--;
 	}
 	wl_surface_destroy(surface->wl.surface);
 }
@@ -310,12 +310,12 @@ void nwl_surface_set_need_update(struct nwl_surface *surface, bool now) {
 void nwl_surface_role_unset(struct nwl_surface *surface) {
 	if (surface->role_id == NWL_SURFACE_ROLE_SUB) {
 		wl_list_remove(&surface->link);
-		wl_list_insert(&surface->state->surfaces, &surface->link);
+		wl_list_insert(&surface->core->surfaces, &surface->link);
 	}
 	nwl_surface_destroy_role(surface);
 	surface->states = 0;
 	memset(&surface->wl, 0, sizeof(surface->wl));
-	surface->wl.surface = wl_compositor_create_surface(surface->state->wl.compositor);
+	surface->wl.surface = wl_compositor_create_surface(surface->core->wl.compositor);
 	wl_surface_set_user_data(surface->wl.surface, surface);
 	wl_surface_add_listener(surface->wl.surface, &surface_listener, surface);
 	surface->role_id = 0;
@@ -323,7 +323,7 @@ void nwl_surface_role_unset(struct nwl_surface *surface) {
 	struct nwl_surface *sub;
 	wl_list_for_each(sub, &surface->subsurfaces, link) {
 		wl_subsurface_destroy(sub->role.subsurface.wl);
-		sub->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->state->wl.subcompositor, sub->wl.surface, surface->wl.surface);
+		sub->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->core->wl.subcompositor, sub->wl.surface, surface->wl.surface);
 	}
 }
 
@@ -331,7 +331,7 @@ bool nwl_surface_role_subsurface(struct nwl_surface *surface, struct nwl_surface
 	if (surface->role_id) {
 		return false;
 	}
-	surface->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->state->wl.subcompositor,
+	surface->role.subsurface.wl = wl_subcompositor_get_subsurface(surface->core->wl.subcompositor,
 			surface->wl.surface, parent->wl.surface);
 	surface->role.subsurface.parent = parent;
 	wl_list_remove(&surface->link);

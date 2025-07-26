@@ -10,28 +10,20 @@
 #include <unistd.h>
 #include "nwl/nwl.h"
 #include "nwl/surface.h"
-#include "nwl/seat.h"
 #include "nwl/config.h"
 #include "wlr-layer-shell-unstable-v1.h"
 #include "xdg-shell.h"
 #include "xdg-decoration-unstable-v1.h"
 #include "xdg-output-unstable-v1.h"
 #if NWL_HAS_SEAT
+#include "nwl/seat.h"
 #include "cursor-shape-v1.h"
 #endif
-struct nwl_poll {
-	int epfd;
-	int dirt_eventfd;
-	int numfds;
-	struct epoll_event *ev;
-	struct wl_list data; // nwl_poll_data
-};
 
 // in seat.c
 void nwl_seat_add_data_device(struct nwl_seat *seat);
 // in shm.c
-void nwl_shm_add_listener(struct nwl_state *state);
-
+void nwl_shm_add_listener(struct nwl_core *core);
 
 static void handle_wm_ping(void *data, struct xdg_wm_base *xdg_wm_base, uint32_t serial) {
 	UNUSED(data);
@@ -86,10 +78,7 @@ static void handle_output_done(
 	struct nwl_output *nwloutput = data;
 	if (nwloutput->is_done > 0) {
 		nwloutput->is_done--;
-		if (!nwloutput->is_done && nwloutput->state->events.global_bound) {
-			struct nwl_bound_global global = { .global.output = nwloutput, .kind = NWL_BOUND_GLOBAL_OUTPUT };
-			nwloutput->state->events.global_bound(&global);
-		}
+		// Notify somehow?
 	}
 }
 
@@ -176,12 +165,7 @@ static const struct zxdg_output_v1_listener xdg_output_listener = {
 	handle_xdg_output_description
 };
 
-static void nwl_output_destroy(void *glob) {
-	struct nwl_output *output = glob;
-	if (output->state->events.global_destroy) {
-		struct nwl_bound_global global = { .global.output = output, .kind = NWL_BOUND_GLOBAL_OUTPUT };
-		output->state->events.global_destroy(&global);
-	}
+void nwl_output_deinit(struct nwl_output *output) {
 	if (output->name) {
 		free(output->name);
 	}
@@ -194,27 +178,23 @@ static void nwl_output_destroy(void *glob) {
 	wl_list_remove(&output->link);
 	wl_output_set_user_data(output->output, NULL);
 	wl_output_destroy(output->output);
-	free(output);
 }
 
-static void nwl_output_create(struct wl_output *output, struct nwl_state *state, uint32_t name) {
-	struct nwl_output *nwloutput = calloc(1, sizeof(struct nwl_output));
-	wl_output_add_listener(output, &output_listener, nwloutput);
-	wl_output_set_user_data(output, nwloutput);
-	nwloutput->output = output;
-	nwloutput->state = state;
-	nwloutput->is_done = 1;
-	wl_list_insert(&state->outputs, &nwloutput->link);
-	struct nwl_global *glob = calloc(1, sizeof(struct nwl_global));
-	glob->global = nwloutput;
-	glob->name = name;
-	glob->impl.destroy = nwl_output_destroy;
-	if (state->wl.xdg_output_manager) {
-		nwloutput->is_done = 2;
-		nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(state->wl.xdg_output_manager, output);
-		zxdg_output_v1_add_listener(nwloutput->xdg_output, &xdg_output_listener, nwloutput);
+void nwl_output_init(struct nwl_output *output, struct nwl_core *core, struct wl_output *wl_output) {
+	wl_output_add_listener(wl_output, &output_listener, output);
+	wl_output_set_user_data(wl_output, output);
+	output->output = wl_output;
+	output->core = core;
+	output->is_done = 1;
+	output->name = NULL;
+	output->description = NULL;
+	output->xdg_output = NULL;
+	wl_list_insert(&core->outputs, &output->link);
+	if (core->wl.xdg_output_manager) {
+		output->is_done = 2;
+		output->xdg_output = zxdg_output_manager_v1_get_xdg_output(core->wl.xdg_output_manager, wl_output);
+		zxdg_output_v1_add_listener(output->xdg_output, &xdg_output_listener, output);
 	}
-	wl_list_insert(&state->globals, &glob->link);
 }
 
 static void *nwl_registry_bind(struct wl_registry *reg, uint32_t name,
@@ -223,65 +203,137 @@ static void *nwl_registry_bind(struct wl_registry *reg, uint32_t name,
 	return wl_registry_bind(reg, name, interface, ver);
 }
 
+bool nwl_core_handle_global(struct nwl_core *core, struct wl_registry *registry,
+		uint32_t name, const char *interface, uint32_t version) {
+	if (strcmp(interface, wl_compositor_interface.name) == 0) {
+		core->wl.compositor = nwl_registry_bind(registry, name, &wl_compositor_interface, version, 6);
+		return true;
+	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
+		core->wl.layer_shell = nwl_registry_bind(registry, name, &zwlr_layer_shell_v1_interface, version, 4);
+		return true;
+	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+		core->wl.xdg_wm_base = nwl_registry_bind(registry, name, &xdg_wm_base_interface, version, 5);
+		xdg_wm_base_add_listener(core->wl.xdg_wm_base, &wm_base_listener, core);
+		return true;
+	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
+		core->wl.shm = nwl_registry_bind(registry, name, &wl_shm_interface, version, 1);
+		nwl_shm_add_listener(core);
+		return true;
+	} else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
+		core->wl.decoration = nwl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, version, 1);
+		return true;
+	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
+		core->wl.subcompositor = nwl_registry_bind(registry, name, &wl_subcompositor_interface, version, 1);
+		return true;
+	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
+		core->wl.xdg_output_manager = nwl_registry_bind(registry, name, &zxdg_output_manager_v1_interface, version, 3);
+		return true;
+	}
+#if NWL_HAS_SEAT
+	else if (strcmp(interface, wl_data_device_manager_interface.name) == 0) {
+		core->wl.data_device_manager = nwl_registry_bind(registry, name, &wl_data_device_manager_interface, version, 3);
+		return true;
+	} else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
+		core->wl.cursor_shape_manager = nwl_registry_bind(registry, name, &wp_cursor_shape_manager_v1_interface, version, 2);
+		return true;
+	}
+#endif
+	return false;
+}
+
+struct nwl_easy_output {
+	struct nwl_output output;
+	struct nwl_easy_global global;
+	bool announced;
+};
+
+
+static void nwl_easy_output_destroy(struct nwl_easy_global *global) {
+	struct nwl_easy_output *output = wl_container_of(global, output, global);
+	struct nwl_easy *easy = wl_container_of(output->output.core, easy, core);
+	if (easy->events.global_destroy) {
+		struct nwl_bound_global global = { .global.output = &output->output, .kind = NWL_BOUND_GLOBAL_OUTPUT };
+		easy->events.global_destroy(&global);
+	}
+	nwl_output_deinit(&output->output);
+	free(output);
+}
+
+#if NWL_HAS_SEAT
+
+struct nwl_easy_seat {
+	struct nwl_seat seat;
+	struct nwl_easy_global global;
+};
+
+static void easy_seat_destroy(struct nwl_easy_global *global) {
+	struct nwl_easy_seat *seat = wl_container_of(global, seat, global);
+	struct nwl_easy *easy = wl_container_of(seat->seat.core, easy, core);
+	if (easy->events.global_destroy) {
+		struct nwl_bound_global global = { .global.seat = &seat->seat, .kind = NWL_BOUND_GLOBAL_SEAT };
+		easy->events.global_destroy(&global);
+	}
+	nwl_easy_del_fd(easy, seat->seat.keyboard_repeat_fd);
+	nwl_seat_deinit(&seat->seat);
+	free(seat);
+}
+static void easy_handle_repeat(struct nwl_easy *easy, uint32_t events, void *data) {
+	UNUSED(easy);
+	UNUSED(events);
+	struct nwl_seat *seat = data;
+	nwl_seat_handle_repeat(seat);
+}
+#endif
+
 static void handle_global_add(void *data, struct wl_registry *reg,
 		uint32_t name, const char *interface, uint32_t version) {
-	struct nwl_state *state = data;
-	if (state->events.global_add &&
-			state->events.global_add(state, reg, name, interface, version)) {
+	struct nwl_easy *easy = data;
+	if (easy->events.global_add &&
+			easy->events.global_add(easy, reg, name, interface, version)) {
 		return;
 	}
-	if (strcmp(interface, wl_compositor_interface.name) == 0) {
-		state->wl.compositor = nwl_registry_bind(reg, name, &wl_compositor_interface, version, 6);
-	} else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
-		state->wl.layer_shell = nwl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, version, 4);
-	} else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-		state->wl.xdg_wm_base = nwl_registry_bind(reg, name, &xdg_wm_base_interface, version, 5);
-		xdg_wm_base_add_listener(state->wl.xdg_wm_base, &wm_base_listener, state);
-	} else if (strcmp(interface, wl_shm_interface.name) == 0) {
-		state->wl.shm = nwl_registry_bind(reg, name, &wl_shm_interface, version, 1);
-		nwl_shm_add_listener(state);
-	} else if (strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0) {
-		state->wl.decoration = nwl_registry_bind(reg, name, &zxdg_decoration_manager_v1_interface, version, 1);
-	} else if (strcmp(interface, wl_output_interface.name) == 0) {
-		struct wl_output *newoutput = nwl_registry_bind(reg, name, &wl_output_interface, version, 4);
-		nwl_output_create(newoutput, state, name);
-	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
-		state->wl.subcompositor = nwl_registry_bind(reg, name, &wl_subcompositor_interface, version, 1);
-	} else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
-		state->wl.xdg_output_manager = nwl_registry_bind(reg, name, &zxdg_output_manager_v1_interface, version, 3);
+	if (nwl_core_handle_global(&easy->core, reg, name, interface, version)) {
+		return;
+	}
+	if (strcmp(interface, wl_output_interface.name) == 0) {
+		struct wl_output *wl_output = nwl_registry_bind(reg, name, &wl_output_interface, version, 4);
+		struct nwl_easy_output *output = calloc(1, sizeof(struct nwl_easy_output));
+		nwl_output_init(&output->output, &easy->core, wl_output);
+		output->global.name = name;
+		output->global.impl.destroy = nwl_easy_output_destroy;
+		wl_list_insert(&easy->globals, &output->global.link);
+		easy->has_new_outputs = true;
 	}
 #if NWL_HAS_SEAT
 	else if (strcmp(interface, wl_seat_interface.name) == 0) {
+		struct nwl_easy_seat *seat = calloc(1, sizeof(struct nwl_easy_seat));
+		seat->global.name = name;
+		seat->global.impl.destroy = easy_seat_destroy;
+		wl_list_insert(&easy->globals, &seat->global.link);
 		struct wl_seat *newseat = nwl_registry_bind(reg, name, &wl_seat_interface, version, 8);
-		nwl_seat_create(newseat, state, name);
-	} else if (strcmp(interface, wl_data_device_manager_interface.name) == 0) {
-		state->wl.data_device_manager = nwl_registry_bind(reg, name, &wl_data_device_manager_interface, version, 3);
-		// Maybe this global shows after seats?
-		struct nwl_seat *seat;
-		wl_list_for_each(seat, &state->seats, link) {
-			if (seat->data_device.wl) {
-				continue; // Will probably never happen, so why check?
-			}
-			nwl_seat_add_data_device(seat);
+		nwl_seat_init(&seat->seat, newseat, &easy->core);
+		nwl_easy_add_fd(easy, seat->seat.keyboard_repeat_fd, 1, easy_handle_repeat, &seat->seat);
+		if (easy->events.global_bound) {
+			struct nwl_bound_global global = { .global.seat = &seat->seat, .kind = NWL_BOUND_GLOBAL_SEAT };
+			easy->events.global_bound(&global);
 		}
-	} else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
-		state->wl.cursor_shape_manager = nwl_registry_bind(reg, name, &wp_cursor_shape_manager_v1_interface, version, 2);
+	} else if (strcmp(interface, wl_data_device_manager_interface.name) == 0) {
+		easy->core.wl.data_device_manager = nwl_registry_bind(reg, name, &wl_data_device_manager_interface, version, 3);
 	}
 #endif
 }
 
 static void handle_global_remove(void *data, struct wl_registry *reg, uint32_t name) {
 	UNUSED(reg);
-	struct nwl_state *state = data;
-	if (state->events.global_remove) {
-		state->events.global_remove(state,reg,name);
+	struct nwl_easy *easy = data;
+	if (easy->events.global_remove) {
+		easy->events.global_remove(easy, reg, name);
 	}
-	struct nwl_global *glob;
-	wl_list_for_each(glob, &state->globals, link) {
+	struct nwl_easy_global *glob;
+	wl_list_for_each(glob, &easy->globals, link) {
 		if (glob->name == name) {
-			glob->impl.destroy(glob->global);
 			wl_list_remove(&glob->link);
-			free(glob);
+			glob->impl.destroy(glob);
 			return;
 		}
 	}
@@ -292,32 +344,25 @@ static const struct wl_registry_listener reg_listener = {
 	handle_global_remove
 };
 
-struct nwl_poll_data {
-	struct wl_list link;
-	int fd;
-	void *userdata;
-	nwl_poll_callback_t callback;
-};
-
-void nwl_poll_add_fd(struct nwl_state *state, int fd, uint32_t events,
+void nwl_easy_add_fd(struct nwl_easy *easy, int fd, uint32_t events,
 		nwl_poll_callback_t callback, void *data) {
-	state->poll->ev = realloc(state->poll->ev, sizeof(struct epoll_event)* ++state->poll->numfds);
+	easy->poll.ev = realloc(easy->poll.ev, sizeof(struct epoll_event)* ++easy->poll.numfds);
 	struct epoll_event ep;
 	struct nwl_poll_data *polldata = calloc(1, sizeof(struct nwl_poll_data));
-	wl_list_insert(&state->poll->data, &polldata->link);
+	wl_list_insert(&easy->poll.data, &polldata->link);
 	polldata->userdata = data;
 	polldata->fd = fd;
 	polldata->callback = callback;
 	ep.data.ptr = polldata;
 	ep.events = events;
-	epoll_ctl(state->poll->epfd, EPOLL_CTL_ADD, fd, &ep);
+	epoll_ctl(easy->poll.epfd, EPOLL_CTL_ADD, fd, &ep);
 }
 
-void nwl_poll_del_fd(struct nwl_state *state, int fd) {
-	state->poll->ev = realloc(state->poll->ev, sizeof(struct epoll_event)* --state->poll->numfds);
-	epoll_ctl(state->poll->epfd, EPOLL_CTL_DEL, fd, NULL);
+void nwl_easy_del_fd(struct nwl_easy *easy, int fd) {
+	easy->poll.ev = realloc(easy->poll.ev, sizeof(struct epoll_event)* --easy->poll.numfds);
+	epoll_ctl(easy->poll.epfd, EPOLL_CTL_DEL, fd, NULL);
 	struct nwl_poll_data *data;
-	wl_list_for_each(data, &state->poll->data, link) {
+	wl_list_for_each(data, &easy->poll.data, link) {
 		if (data->fd == fd) {
 			wl_list_remove(&data->link);
 			free(data);
@@ -329,119 +374,158 @@ void nwl_poll_del_fd(struct nwl_state *state, int fd) {
 void surface_mark_dirty(struct nwl_surface *surface) {
 	// This isn't really thread-safe!
 	if (wl_list_empty(&surface->dirtlink)) {
-		wl_list_insert(&surface->state->surfaces_dirty, &surface->dirtlink);
+		wl_list_insert(&surface->core->surfaces_dirty, &surface->dirtlink);
 	}
-	eventfd_write(surface->state->poll->dirt_eventfd, 1);
+	surface->core->has_dirty_surfaces = true;
 }
 
-static void nwl_wayland_poll_display(struct nwl_state *state, uint32_t events, void *data) {
+static void nwl_wayland_poll_display(struct nwl_easy *easy, uint32_t events, void *data) {
 	UNUSED(data);
 	UNUSED(events);
-	if (wl_display_dispatch(state->wl.display) == -1) {
+	if (wl_display_dispatch(easy->display) == -1) {
 		perror("Fatal Wayland error");
-		state->has_errored = true;
-		state->num_surfaces = 0;
-		state->run_with_zero_surfaces = false;
+		easy->has_errored = true;
+		easy->core.num_surfaces = 0;
+		easy->run_with_zero_surfaces = false;
 	}
 }
 
-static bool handle_dirty_surfaces(struct nwl_state *state) {
+static void handle_dirty_surfaces(struct nwl_core *core) {
 	struct nwl_surface *surface, *stmp;
-	wl_list_for_each_safe(surface, stmp, &state->surfaces_dirty, dirtlink) {
+	core->has_dirty_surfaces = false;
+	wl_list_for_each_safe(surface, stmp, &core->surfaces_dirty, dirtlink) {
 		if (surface->states & NWL_SURFACE_STATE_DESTROY) {
 			nwl_surface_destroy(surface);
 			// This might have destroyed other surfaces. Start over to be safe!
-			return true;
+			core->has_dirty_surfaces = true;
+			return;
 		} else if (surface->states & NWL_SURFACE_STATE_NEEDS_UPDATE && !surface->wl.frame_cb) {
 			nwl_surface_update(surface);
 		}
 		wl_list_remove(&surface->dirtlink);
 		wl_list_init(&surface->dirtlink); // To make sure it's not in an undefined state..
 	}
-	return false;
 }
 
-static void nwl_wayland_handle_dirt(struct nwl_state *state, uint32_t events, void *data) {
-	UNUSED(data);
-	UNUSED(events);
-	// Yeah sure, errors might happen. Who cares?
-	eventfd_read(state->poll->dirt_eventfd, NULL);
-	while(handle_dirty_surfaces(state)) { }
+void nwl_core_handle_dirt(struct nwl_core *core) {
+	while(core->has_dirty_surfaces) {
+		handle_dirty_surfaces(core);
+	}
 }
 
-bool nwl_poll_dispatch(struct nwl_state *state, int timeout) {
-	wl_display_flush(state->wl.display);
-	int nfds = epoll_wait(state->poll->epfd, state->poll->ev, state->poll->numfds, timeout);
+void announce_outputs(struct nwl_easy *easy) {
+	struct nwl_output *output;
+	bool roundtripped = false;
+	wl_list_for_each(output, &easy->core.outputs, link) {
+		struct nwl_easy_output *easyoutput = wl_container_of(output, easyoutput, output);
+		if (!easyoutput->announced) {
+			if (easyoutput->output.is_done != 0 && !roundtripped) {
+				// Roundtrip to ensure it's done. Is this dangerous?
+				wl_display_roundtrip(easy->display);
+				roundtripped = true;
+			}
+			easyoutput->announced = true;
+			if (easy->events.global_bound != NULL) {
+				struct nwl_bound_global glob = {
+					.global.output = output,
+					.kind = NWL_BOUND_GLOBAL_OUTPUT,
+				};
+				easy->events.global_bound(&glob);
+			}
+		}
+	}
+}
+
+bool nwl_easy_dispatch(struct nwl_easy *easy, int timeout) {
+	wl_display_flush(easy->display);
+	int nfds = epoll_wait(easy->poll.epfd, easy->poll.ev, easy->poll.numfds, timeout);
 	if (nfds == -1 && errno != EINTR) {
 		perror("error while polling");
 		return false;
 	}
 	for (int i = 0; i < nfds; i++) {
-		struct nwl_poll_data *data = state->poll->ev[i].data.ptr;
-		data->callback(state, state->poll->ev[i].events, data->userdata);
+		struct nwl_poll_data *data = easy->poll.ev[i].data.ptr;
+		data->callback(easy, easy->poll.ev[i].events, data->userdata);
+	}
+	if (easy->has_new_outputs) {
+		announce_outputs(easy);
+		easy->has_new_outputs = false;
+	}
+	if (easy->core.has_dirty_surfaces) {
+		nwl_core_handle_dirt(&easy->core);
 	}
 	return true;
 }
 
-void nwl_wayland_run(struct nwl_state *state) {
+void nwl_easy_run(struct nwl_easy *easy) {
 	// Everything about this seems very flaky.. but it works!
-	while (state->run_with_zero_surfaces || state->num_surfaces) {
-		if (!nwl_poll_dispatch(state, -1)) {
+	while (easy->run_with_zero_surfaces || easy->core.num_surfaces) {
+		if (!nwl_easy_dispatch(easy, -1)) {
 			return;
 		}
 	}
 }
 
-int nwl_poll_get_fd(struct nwl_state *state) {
-	if (state->poll) {
-		return state->poll->epfd;
-	}
-	return -1;
+void nwl_core_init(struct nwl_core *core) {
+	wl_list_init(&core->seats);
+	wl_list_init(&core->outputs);
+	wl_list_init(&core->surfaces);
+	wl_list_init(&core->surfaces_dirty);
+	wl_list_init(&core->subs);
 }
 
-char nwl_wayland_init(struct nwl_state *state) {
-	wl_list_init(&state->seats);
-	wl_list_init(&state->outputs);
-	wl_list_init(&state->surfaces);
-	wl_list_init(&state->surfaces_dirty);
-	wl_list_init(&state->globals);
-	wl_list_init(&state->subs);
-	state->wl.display = wl_display_connect(NULL);
-	if (!state->wl.display) {
+bool nwl_easy_init(struct nwl_easy *easy) {
+	nwl_core_init(&easy->core);
+	wl_list_init(&easy->globals);
+	wl_list_init(&easy->poll.data);
+	easy->display = wl_display_connect(NULL);
+	if (!easy->display) {
 		fprintf(stderr, "Couldn't connect to Wayland compositor.\n");
-		return 1;
+		return false;
 	}
-	state->wl.registry = wl_display_get_registry(state->wl.display);
-	wl_registry_add_listener(state->wl.registry, &reg_listener, state);
-	if (wl_display_roundtrip(state->wl.display) == -1) {
+	easy->registry = wl_display_get_registry(easy->display);
+	wl_registry_add_listener(easy->registry, &reg_listener, easy);
+	easy->poll.epfd = epoll_create1(0);
+	easy->poll.ev = NULL;
+	if (wl_display_roundtrip(easy->display) == -1) {
 		fprintf(stderr, "Initial roundtrip failed.\n");
-		wl_registry_destroy(state->wl.registry);
-		wl_display_disconnect(state->wl.display);
-		return 1;
+		wl_registry_destroy(easy->registry);
+		wl_display_disconnect(easy->display);
+		return false;
 	}
-
-	state->poll = calloc(1, sizeof(struct nwl_poll));
-	wl_list_init(&state->poll->data);
-	state->poll->epfd = epoll_create1(0);
-	state->poll->dirt_eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-	nwl_poll_add_fd(state, wl_display_get_fd(state->wl.display), EPOLLIN, nwl_wayland_poll_display, NULL);
-	nwl_poll_add_fd(state, state->poll->dirt_eventfd, EPOLLIN, nwl_wayland_handle_dirt, NULL);
+	nwl_easy_add_fd(easy, wl_display_get_fd(easy->display), EPOLLIN, nwl_wayland_poll_display, NULL);
 
 	// Ask xdg output manager for xdg_outputs in case wl_output globals were sent before it.
-	if (state->wl.xdg_output_manager) {
+	if (easy->core.wl.xdg_output_manager) {
 		struct nwl_output *nwloutput;
-		wl_list_for_each(nwloutput, &state->outputs, link) {
+		wl_list_for_each(nwloutput, &easy->core.outputs, link) {
 			if (nwloutput->xdg_output) {
 				continue;
 			}
 			nwloutput->is_done = 2;
-			nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(state->wl.xdg_output_manager, nwloutput->output);
+			nwloutput->xdg_output = zxdg_output_manager_v1_get_xdg_output(easy->core.wl.xdg_output_manager, nwloutput->output);
 			zxdg_output_v1_add_listener(nwloutput->xdg_output, &xdg_output_listener, nwloutput);
 		}
 	}
+#if NWL_HAS_SEAT
+	if (easy->core.wl.data_device_manager) {
+		struct nwl_seat *seat;
+		wl_list_for_each((seat), &easy->core.seats, link) {
+			if (seat->data_device.wl) {
+				continue;
+			}
+			seat->data_device.wl = wl_data_device_manager_get_data_device(easy->core.wl.data_device_manager, seat->wl_seat);
+		}
+	}
+#endif
 	// Extra roundtrip so output information is properly filled in
-	wl_display_roundtrip(state->wl.display);
-	return 0;
+	wl_display_roundtrip(easy->display);
+	// Let them know there are outputs!
+	if (easy->has_new_outputs) {
+		announce_outputs(easy);
+		easy->has_new_outputs = false;
+	}
+	return true;
 }
 
 static void poll_destroy(struct nwl_poll *poll) {
@@ -454,70 +538,71 @@ static void poll_destroy(struct nwl_poll *poll) {
 		free(poll->ev);
 	}
 	close(poll->epfd);
-	close(poll->dirt_eventfd);
 }
 
-void nwl_wayland_uninit(struct nwl_state *state) {
-	while (!wl_list_empty(&state->surfaces)) {
-		struct nwl_surface *surface = wl_container_of(state->surfaces.next, surface, link);
+void nwl_core_deinit(struct nwl_core *core) {
+	while (!wl_list_empty(&core->surfaces)) {
+		struct nwl_surface *surface = wl_container_of(core->surfaces.next, surface, link);
 		nwl_surface_destroy(surface);
 	}
-	struct nwl_state_sub *sub, *subtmp;
-	wl_list_for_each_safe(sub, subtmp, &state->subs, link) {
+	struct nwl_core_sub *sub, *subtmp;
+	wl_list_for_each_safe(sub, subtmp, &core->subs, link) {
 		wl_list_remove(&sub->link);
 		sub->impl->destroy(sub);
 	}
-	struct nwl_global *glob, *globtmp;
-	wl_list_for_each_safe(glob, globtmp, &state->globals, link) {
-		glob->impl.destroy(glob->global);
-		wl_list_remove(&glob->link);
-		free(glob);
-	}
 	// This should be moved out of here.
 #if NWL_HAS_SEAT
-	if (state->cursor_theme) {
-		wl_cursor_theme_destroy(state->cursor_theme);
+	if (core->cursor_theme) {
+		wl_cursor_theme_destroy(core->cursor_theme);
 	}
-	if (state->wl.cursor_shape_manager) {
-		wp_cursor_shape_manager_v1_destroy(state->wl.cursor_shape_manager);
+	if (core->wl.cursor_shape_manager) {
+		wp_cursor_shape_manager_v1_destroy(core->wl.cursor_shape_manager);
 	}
 #endif
-	if (state->wl.compositor) {
-		wl_compositor_destroy(state->wl.compositor);
+	if (core->wl.compositor) {
+		wl_compositor_destroy(core->wl.compositor);
 	}
-	if (state->wl.decoration) {
-		zxdg_decoration_manager_v1_destroy(state->wl.decoration);
+	if (core->wl.decoration) {
+		zxdg_decoration_manager_v1_destroy(core->wl.decoration);
 	}
-	if (state->wl.layer_shell) {
-		zwlr_layer_shell_v1_destroy(state->wl.layer_shell);
+	if (core->wl.layer_shell) {
+		zwlr_layer_shell_v1_destroy(core->wl.layer_shell);
 	}
-	if (state->wl.registry) {
-		wl_registry_destroy(state->wl.registry);
+	if (core->wl.subcompositor) {
+		wl_subcompositor_destroy(core->wl.subcompositor);
 	}
-	if (state->wl.subcompositor) {
-		wl_subcompositor_destroy(state->wl.subcompositor);
+	if (core->wl.shm) {
+		wl_shm_destroy(core->wl.shm);
 	}
-	if (state->wl.shm) {
-		wl_shm_destroy(state->wl.shm);
+	if (core->wl.xdg_output_manager) {
+		zxdg_output_manager_v1_destroy(core->wl.xdg_output_manager);
 	}
-	if (state->wl.xdg_output_manager) {
-		zxdg_output_manager_v1_destroy(state->wl.xdg_output_manager);
+	if (core->wl.xdg_wm_base) {
+		xdg_wm_base_destroy(core->wl.xdg_wm_base);
 	}
-	if (state->wl.xdg_wm_base) {
-		xdg_wm_base_destroy(state->wl.xdg_wm_base);
+	if (core->wl.data_device_manager) {
+		wl_data_device_manager_destroy(core->wl.data_device_manager);
 	}
-	if (state->wl.data_device_manager) {
-		wl_data_device_manager_destroy(state->wl.data_device_manager);
+}
+
+void nwl_easy_deinit(struct nwl_easy *easy) {
+	struct nwl_easy_global *glob, *globtmp;
+	wl_list_for_each_safe(glob, globtmp, &easy->globals, link) {
+		wl_list_remove(&glob->link);
+		glob->impl.destroy(glob);
 	}
-	wl_display_disconnect(state->wl.display);
-	poll_destroy(state->poll);
-	free(state->poll);
+	nwl_core_deinit(&easy->core);
+	if (easy->registry) {
+		wl_registry_destroy(easy->registry);
+	}
+	wl_display_disconnect(easy->display);
+	poll_destroy(&easy->poll);
 }
 
 // These should be moved into state.c or something..
-struct nwl_state_sub *nwl_state_get_sub(struct nwl_state *state, const struct nwl_state_sub_impl *subimpl) {
-	struct nwl_state_sub *sub;
-	wl_list_for_each(sub, &state->subs, link) {
+struct nwl_core_sub *nwl_core_get_sub(struct nwl_core *core, const struct nwl_core_sub_impl *subimpl) {
+	struct nwl_core_sub *sub;
+	wl_list_for_each(sub, &core->subs, link) {
 		if (sub->impl == subimpl) {
 			return sub;
 		}
@@ -525,6 +610,6 @@ struct nwl_state_sub *nwl_state_get_sub(struct nwl_state *state, const struct nw
 	return NULL; // EVIL NULL POINTER!
 }
 
-void nwl_state_add_sub(struct nwl_state *state, struct nwl_state_sub *sub) {
-	wl_list_insert(&state->subs, &sub->link);
+void nwl_core_add_sub(struct nwl_core *core, struct nwl_core_sub *sub) {
+	wl_list_insert(&core->subs, &sub->link);
 }

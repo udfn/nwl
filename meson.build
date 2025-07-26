@@ -9,17 +9,13 @@ seat_support = get_option('seat')
 wayland_client = dependency('wayland-client')
 wayland_cursor = dependency('wayland-cursor', required: seat_support)
 cairo = dependency('cairo')
-egl = dependency('egl')
 gl = dependency('gl')
 rt = cc.find_library('rt')
-wlegl = dependency('wayland-egl')
-epoxy = dependency('epoxy')
 xkbc = dependency('xkbcommon', required: seat_support)
 subdir('protocol')
 subdir('nwl')
 nwl_src = [
 	'src/cairo.c',
-	'src/egl.c',
 	'src/shm.c',
 	'src/shell.c',
 	'src/surface.c',
@@ -30,11 +26,8 @@ nwl_src = [
 nwl_deps = [
 	wayland_client,
 	cairo,
-	egl,
 	gl,
 	rt,
-	wlegl,
-	epoxy,
 ]
 if xkbc.found()
 	nwl_src += [ 'src/seat.c' ]
