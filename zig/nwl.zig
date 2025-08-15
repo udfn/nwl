@@ -5,7 +5,7 @@
 const std = @import("std");
 /// CamelCasify a Wayland object name, to match zig-wayland
 const WlObjectNamer = struct {
-    fn doWrite(name: []const u8, writer: anytype) !void {
+    fn doWrite(name: []const u8, writer: *std.Io.Writer) !void {
         var tok = std.mem.tokenizeScalar(u8, name, '_');
         while (tok.next()) |t| {
             try writer.writeByte(std.ascii.toUpper(t[0]));
@@ -13,11 +13,12 @@ const WlObjectNamer = struct {
         }
     }
     pub fn casify(comptime name: []const u8) []const u8 {
-        var cw = std.io.countingWriter(std.io.null_writer);
-        WlObjectNamer.doWrite(name, cw.writer()) catch unreachable;
-        var buf: [cw.bytes_written]u8 = undefined;
-        var stream = std.io.fixedBufferStream(buf[0..]);
-        WlObjectNamer.doWrite(name, stream.writer()) catch unreachable;
+        var discard_buf: [64]u8 = undefined;
+        var cw = std.Io.Writer.Discarding.init(&discard_buf);
+        WlObjectNamer.doWrite(name, &cw.writer) catch unreachable;
+        var buf: [cw.fullCount()]u8 = undefined;
+        var stream = std.Io.Writer.fixed(&buf);
+        WlObjectNamer.doWrite(name, &stream) catch unreachable;
         return buf[0..];
     }
 };
