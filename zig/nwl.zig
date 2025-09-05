@@ -285,7 +285,7 @@ pub const Seat = extern struct {
     keyboard_repeat_rate: i32,
     keyboard_repeat_delay: i32,
     keyboard_repeat_fd: c_int,
-    keyboard_event: ?*KeyboardEvent,
+    keyboard_event: KeyboardEvent,
     touch: ?*WlTouch,
     touch_focus: ?*Surface,
     touch_serial: u32,
@@ -293,7 +293,7 @@ pub const Seat = extern struct {
     pointer_focus: ?*Surface,
     pointer_prev_focus: ?*Surface,
     pointer_surface: PointerSurface,
-    pointer_event: ?*PointerEvent,
+    pointer_event: PointerEvent,
     name: ?[*:0]const u8,
     userdata: ?*anyopaque,
 

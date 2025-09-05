@@ -41,43 +41,32 @@ struct nwl_seat_keymap_xkb {
 	struct xkb_compose_table *compose_table;
 };
 
-struct nwl_seat {
-	struct nwl_core *core;
-	struct wl_list link;
-	struct wl_seat *wl_seat;
-	struct {
-		struct wl_data_device *wl;
-		struct nwl_data_offer drop;
-		struct nwl_data_offer selection;
-		struct nwl_data_offer incoming; // before it says whether it's dnd or selection
-		struct nwl_dnd_event event;
-	} data_device;
-	struct wl_keyboard *keyboard;
-	struct nwl_seat_keymap_xkb keyboard_xkb;
-	bool keyboard_compose_enabled; // Recommended when typing! Maybe move this to surface?
-	bool keyboard_repeat_enabled;
-	struct nwl_surface *keyboard_focus;
-	int32_t keyboard_repeat_rate;
-	int32_t keyboard_repeat_delay;
-	int keyboard_repeat_fd;
-	struct nwl_keyboard_event *keyboard_event;
 
-	struct wl_touch *touch;
-	struct nwl_surface *touch_focus;
-	uint32_t touch_serial;
-
-	struct wl_pointer *pointer;
-	struct nwl_surface *pointer_focus;
-	struct nwl_surface *pointer_prev_focus;
-	struct {
-		struct wp_cursor_shape_device_v1 *shape_device;
-		struct wl_surface *xcursor_surface;
-		struct nwl_surface *nwl;
-	} pointer_surface;
-	struct nwl_pointer_event *pointer_event;
-	char *name;
-	void *userdata;
+enum nwl_keyboard_event_type {
+	NWL_KEYBOARD_EVENT_FOCUS,
+	NWL_KEYBOARD_EVENT_KEYDOWN,
+	NWL_KEYBOARD_EVENT_KEYUP,
+	NWL_KEYBOARD_EVENT_KEYREPEAT,
+	NWL_KEYBOARD_EVENT_MODIFIERS,
 };
+
+enum nwl_keyboard_compose_state {
+	NWL_KEYBOARD_COMPOSE_NONE,
+	NWL_KEYBOARD_COMPOSE_COMPOSING,
+	NWL_KEYBOARD_COMPOSE_COMPOSED
+};
+
+struct nwl_keyboard_event {
+	char type; // nwl_keyboard_event_type
+	char compose_state; // nwl_keyboard_compose_state
+	bool focus;
+	// If the compose state is composed then keysym and utf8 is the composed sym!
+	xkb_keysym_t keysym;
+	xkb_keycode_t keycode;
+	char utf8[16];
+	uint32_t serial;
+};
+
 
 enum nwl_pointer_event_changed {
 	NWL_POINTER_EVENT_FOCUS = 1 << 0,
@@ -124,29 +113,42 @@ struct nwl_pointer_event {
 	bool focus;
 };
 
-enum nwl_keyboard_event_type {
-	NWL_KEYBOARD_EVENT_FOCUS,
-	NWL_KEYBOARD_EVENT_KEYDOWN,
-	NWL_KEYBOARD_EVENT_KEYUP,
-	NWL_KEYBOARD_EVENT_KEYREPEAT,
-	NWL_KEYBOARD_EVENT_MODIFIERS,
-};
+struct nwl_seat {
+	struct nwl_core *core;
+	struct wl_list link;
+	struct wl_seat *wl_seat;
+	struct {
+		struct wl_data_device *wl;
+		struct nwl_data_offer drop;
+		struct nwl_data_offer selection;
+		struct nwl_data_offer incoming; // before it says whether it's dnd or selection
+		struct nwl_dnd_event event;
+	} data_device;
+	struct wl_keyboard *keyboard;
+	struct nwl_seat_keymap_xkb keyboard_xkb;
+	bool keyboard_compose_enabled; // Recommended when typing! Maybe move this to surface?
+	bool keyboard_repeat_enabled;
+	struct nwl_surface *keyboard_focus;
+	int32_t keyboard_repeat_rate;
+	int32_t keyboard_repeat_delay;
+	int keyboard_repeat_fd;
+	struct nwl_keyboard_event keyboard_event;
 
-enum nwl_keyboard_compose_state {
-	NWL_KEYBOARD_COMPOSE_NONE,
-	NWL_KEYBOARD_COMPOSE_COMPOSING,
-	NWL_KEYBOARD_COMPOSE_COMPOSED
-};
+	struct wl_touch *touch;
+	struct nwl_surface *touch_focus;
+	uint32_t touch_serial;
 
-struct nwl_keyboard_event {
-	char type; // nwl_keyboard_event_type
-	char compose_state; // nwl_keyboard_compose_state
-	bool focus;
-	// If the compose state is composed then keysym and utf8 is the composed sym!
-	xkb_keysym_t keysym;
-	xkb_keycode_t keycode;
-	char utf8[16];
-	uint32_t serial;
+	struct wl_pointer *pointer;
+	struct nwl_surface *pointer_focus;
+	struct nwl_surface *pointer_prev_focus;
+	struct {
+		struct wp_cursor_shape_device_v1 *shape_device;
+		struct wl_surface *xcursor_surface;
+		struct nwl_surface *nwl;
+	} pointer_surface;
+	struct nwl_pointer_event pointer_event;
+	char *name;
+	void *userdata;
 };
 
 void nwl_seat_init(struct nwl_seat *seat, struct wl_seat *wlseat, struct nwl_core *core);
