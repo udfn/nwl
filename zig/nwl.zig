@@ -27,7 +27,7 @@ const WlObjectNamer = struct {
 fn WaylandObject(comptime name: []const u8) type {
     const root = @import("root");
     if (@hasDecl(root, "wayland")) {
-        const client = root.wayland.client;
+        const client = if (@hasDecl(root.wayland, "client")) root.wayland.client else root.wayland;
         const delim = std.mem.indexOf(u8, name, "_");
         if (delim) |d| {
             const prefix = name[0..d];
@@ -474,6 +474,7 @@ pub const Surface = extern struct {
     extern fn nwl_surface_role_unset(surface: *Surface) void;
     extern fn nwl_surface_init(surface: *Surface, core: *Core, title: [*:0]const u8) void;
     extern fn nwl_surface_buffer_submitted(surface: *Surface) void;
+    extern fn nwl_surface_request_callback(surface: *Surface) void;
     pub fn commit(self: *Surface) void {
         if (@hasDecl(WlSurface, "commit")) {
             self.wl.surface.commit();
@@ -506,6 +507,7 @@ pub const Surface = extern struct {
     pub const setTitle = nwl_surface_set_title;
     pub const setNeedUpdate = nwl_surface_set_need_update;
     pub const bufferSubmitted = nwl_surface_buffer_submitted;
+    pub const requestCallback = nwl_surface_request_callback;
     pub const destroy = nwl_surface_destroy;
     pub const destroyLater = nwl_surface_destroy_later;
     pub const unsetRole = nwl_surface_role_unset;
