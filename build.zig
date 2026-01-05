@@ -62,8 +62,8 @@ pub fn build(b: *std.Build) !void {
         });
     }
     if (cairo) {
-        nwl_lib.addCSourceFile(.{ .file = b.path("src/cairo.c"), .flags = &.{} });
-        nwl_lib.linkSystemLibrary("cairo");
+        nwl_lib_mod.addCSourceFile(.{ .file = b.path("src/cairo.c"), .flags = &.{} });
+        nwl_lib_mod.linkSystemLibrary("cairo", .{});
     }
     const conf = b.addConfigHeader(.{ .include_path = "nwl/config.h" }, .{
         .NWL_HAS_SEAT = @intFromBool(seat),

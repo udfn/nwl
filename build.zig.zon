@@ -5,8 +5,8 @@
     .paths = .{""},
     .dependencies = .{
         .wlscannerstep = .{
-            .url = "git+https://github.com/udfn/wlscanner-zbs-step.git?ref=master#b8b20b6e6bc470c265e206e704d5f45b42528c3b",
-            .hash = "wlscanner_zbs_step-0.0.0-tHf9wpc5AAA4QLIbHUErkbEA1v7Y3lZ_lmIE-mzIr7vF",
+            .url = "git+https://github.com/udfn/wlscanner-zbs-step.git?ref=master#6815907ef56b4e11176de62c1c34ed1c446dfed3",
+            .hash = "wlscanner_zbs_step-0.0.0-tHf9wlc7AABwjtHXtIfvTpV4jxuVnYmbCg-SdYAjBYZI",
         },
     },
 }

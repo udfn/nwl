@@ -28,6 +28,7 @@ void nwl_shm_pool_finish(struct nwl_shm_pool *shm) {
 		munmap(shm->data, shm->size);
 		close(shm->fd);
 		shm->fd = -1;
+		shm->pool = NULL;
 	}
 }
 
@@ -51,7 +52,7 @@ static void handle_buffer_release(void *data, struct wl_buffer *buffer) {
 		return;
 	}
 	struct nwl_shm_buffer *nwlbuf = data;
-	nwlbuf->flags = (nwlbuf->flags & ~NWL_SHM_BUFFER_ACQUIRED);
+	nwlbuf->flags &= ~NWL_SHM_BUFFER_ACQUIRED;
 }
 
 static const struct wl_buffer_listener buffer_listener = {
@@ -121,7 +122,7 @@ void nwl_shm_bufferman_resize(struct nwl_shm_bufferman *bm, struct wl_shm *wl_sh
 			nwl_shm_pool_finish(&bm->pool);
 		}
 		// Add some extra so if the surface grows slightly the pool can be reused
-		nwl_shm_set_size(&bm->pool, wl_shm, new_min_pool_size+stride*30);
+		nwl_shm_set_size(&bm->pool, wl_shm, new_min_pool_size+(stride*30));
 	}
 	bm->width = width;
 	bm->height = height;
