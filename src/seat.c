@@ -250,10 +250,13 @@ static void handle_keyboard_modifiers(
 		uint32_t group) {
 	UNUSED(wl_keyboard);
 	struct nwl_seat *seat = (struct nwl_seat*)data;
+	struct nwl_keyboard_event *event = &seat->keyboard_event;
+	event->serial = serial;
+	event->type = NWL_KEYBOARD_EVENT_MODIFIERS;
 	if (seat->keyboard_xkb.state) {
 		xkb_state_update_mask(seat->keyboard_xkb.state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
+		dispatch_keyboard_event(seat);
 	}
-	seat->keyboard_event.serial = serial;
 }
 
 static void handle_keyboard_repeat(
