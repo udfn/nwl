@@ -255,7 +255,10 @@ static void handle_keyboard_modifiers(
 	event->type = NWL_KEYBOARD_EVENT_MODIFIERS;
 	if (seat->keyboard_xkb.state) {
 		xkb_state_update_mask(seat->keyboard_xkb.state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
-		dispatch_keyboard_event(seat);
+		// This can happen without keyboard focus!
+		if (seat->keyboard_focus) {
+			dispatch_keyboard_event(seat);
+		}
 	}
 }
 
