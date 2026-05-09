@@ -649,7 +649,7 @@ pub const ShmBufferMan = extern struct {
         buffer_destroy: *const fn (buf_idx: c_uint, bufferman: *ShmBufferMan) callconv(.c) void,
     };
     pool: ShmPool = .{},
-    buffers: [max_buffers]Buffer = [_]Buffer{.{}} ** max_buffers,
+    buffers: [max_buffers]Buffer = @splat(.{}),
     impl: ?*const RendererImpl = null,
     width: u32 = 0,
     height: u32 = 0,
